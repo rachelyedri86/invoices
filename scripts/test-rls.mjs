@@ -44,30 +44,28 @@ async function newDraft(client, extra = {}) {
 
 try {
   // ---------- Visibility ----------
-  const count = async (client, table = "invoices") => (await client.from(table).select("id")).data?.length ?? -1;
-  const seedOnly = (client) => client.from("invoices").select("id, status, employee_id");
+  // Expected visibility is computed from the full table (read with the secret key), so the
+  // checks keep working after invoices are added through the app.
+  const cols = "id, status, employee_id, current_approver_id, first_approver_id, decided_by";
+  const all = (await admin.from("invoices").select(cols)).data;
+  const idsOf = (rows) => JSON.stringify(rows.map((r) => r.id).sort());
+  const visibleTo = async (key) => idsOf((await as[key].from("invoices").select("id")).data ?? []);
+  const touches = (i, uid) => [i.employee_id, i.current_approver_id, i.first_approver_id, i.decided_by].includes(uid);
+  const managedBy = { manager: [ids.employee], senior: [ids.manager, ids.employee] };
 
-  const emp = (await seedOnly(as.employee)).data;
-  expect("עובד רואה רק את החשבוניות שלו", emp.length === 6 && emp.every((i) => i.employee_id === ids.employee), JSON.stringify(emp.length));
-
-  const mgr = (await seedOnly(as.manager)).data;
-  expect(
-    "מנהל רואה את שלו ואת של העובדים שלו, בלי טיוטות",
-    mgr.length === 6 && !mgr.some((i) => i.status === "draft"),
-    `${mgr.length}`,
-  );
-
-  const sen = (await seedOnly(as.senior)).data;
-  expect("מנהל בכיר רואה גם עובדים בדרג שני", sen.length === 6, `${sen.length}`);
-
-  const acc = (await seedOnly(as.accounting)).data;
+  expect("עובד רואה רק את החשבוניות שלו", (await visibleTo("employee")) === idsOf(all.filter((i) => i.employee_id === ids.employee)));
+  for (const key of ["manager", "senior"]) {
+    const expected = all.filter((i) => touches(i, ids[key]) || (i.status !== "draft" && managedBy[key].includes(i.employee_id)));
+    expect(
+      key === "manager" ? "מנהל רואה את שלו ואת של העובדים שלו, בלי טיוטות" : "מנהל בכיר רואה גם עובדים בדרג שני",
+      (await visibleTo(key)) === idsOf(expected),
+    );
+  }
   expect(
     "הנהלת חשבונות רואה רק מאושרות ושולמו",
-    acc.length === 2 && acc.every((i) => ["approved", "paid"].includes(i.status)),
-    `${acc.length}`,
+    (await visibleTo("accounting")) === idsOf(all.filter((i) => touches(i, ids.accounting) || ["approved", "paid"].includes(i.status))),
   );
-
-  expect("אדמין רואה הכול", (await count(as.admin)) === 7);
+  expect("אדמין רואה הכול", (await visibleTo("admin")) === idsOf(all));
 
   const anon = createClient(SUPABASE_URL, PUBLISHABLE_KEY, { auth: { persistSession: false } });
   const anonRead = await anon.from("invoices").select("id");
@@ -81,7 +79,7 @@ try {
   );
 
   // ---------- Blocked actions ----------
-  const pendingSeed = emp.find((i) => i.status === "pending");
+  const pendingSeed = all.find((i) => i.employee_id === ids.employee && i.status === "pending");
   const statusHack = await as.employee.from("invoices").update({ status: "approved" }).eq("id", pendingSeed.id);
   expect("עובד לא יכול לשנות סטטוס ישירות", !!statusHack.error);
 

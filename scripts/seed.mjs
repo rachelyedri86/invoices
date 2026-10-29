@@ -74,6 +74,10 @@ for (const [key, person] of Object.entries(people)) {
 }
 
 // ---------- Invoices ----------
+const oldFiles = check("קבצי דמו", await admin.from("invoices").select("file_path").in("employee_id", Object.values(ids)))
+  .map((r) => r.file_path)
+  .filter(Boolean);
+if (oldFiles.length) await admin.storage.from("invoices").remove(oldFiles);
 check("ניקוי חשבוניות דמו", await admin.from("invoices").delete().in("employee_id", Object.values(ids)));
 
 const now = Date.now();

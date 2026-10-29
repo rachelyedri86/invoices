@@ -95,6 +95,9 @@ APP_URL=http://localhost:3000
 - טפסים: `ActionForm` (useActionState) + server action שמחזירה `ActionResult`
 - התחברות: עד שיוגדר SMTP (שלב ה') Supabase שולח רק את תבנית ברירת המחדל עם קישור Sign in, ולכן `/auth/callback` מחליף את ה-code ל-session (צריך לפתוח את הקישור באותו דפדפן). הפרוקסי מעביר `/?code=` לשם. אחרי SMTP: תבנית עם `{{ .Token }}` לקוד. השרת המקומי רץ על פורט 3000 (= Site URL). ה-OTP: `shouldCreateUser: false` (רק משתמשים שאדמין הוסיף). בפיתוח יש כפתורי כניסה מהירה למשתמשי דמו (`NODE_ENV=development` בלבד)
 - Cache Components כבויים (`next.config.ts`): כל המסכים תלויי משתמש
+- העלאה: הדפדפן מכווץ תמונה (עד 2000px JPEG) ומעלה ישירות ל-Storage (`{uid}/{uuid}.ext`); `processUpload` בשרת מוריד, בודק סוג אמיתי לפי bytes וגודל, שולח ל-Claude ויוצר טיוטה
+- `src/lib/extract.ts`: `claude-sonnet-5-5`, `client.beta.messages.parse` + `betaZodOutputFormat` (JSON מאומת, שדה שלא נמצא = null), `fallbacks: "default"`. PDF נשלח כ-document, תמונה מוקטנת ל-1600px עם sharp
+- `samples/`: חשבוניות לדוגמה (PNG/PDF) לבדיקה ידנית
 - אחרי מיגרציה חדשה: `npm run db:types` מעדכן את `src/lib/database.types.ts`
 - `supabase/migrations/`: סכמה, פונקציות תהליך (`submit_invoice`, `approve_invoice`, `reject_invoice`, `mark_invoices_paid`, `invoice_duplicate_exists`), RLS ו-Storage. שינוי סכמה = קובץ מיגרציה חדש, לא עריכה של קובץ שכבר הוחל.
 - סטטוס משתנה רק דרך פונקציות התהליך. למשתמשים יש הרשאת עדכון רק לעמודות שניתנות לעריכה.
@@ -104,7 +107,7 @@ APP_URL=http://localhost:3000
 ## תוכנית עבודה
 - [x] **א. הקמה**: פרויקט Next.js, git, חיבור ל-Supabase, מיגרציות SQL (טבלאות, RLS, triggers, bucket), seed עם משתמש מכל תפקיד
 - [x] **ב. התחברות ותפקידים**: OTP במייל, middleware, ניווט לפי תפקיד, מסך אדמין (משתמשים ומנהלים, מחלקות, קטגוריות, מטבעות, סף אישור)
-- [ ] **ג. העלאה וחילוץ**: צילום או העלאה, כיווץ, Claude API, zod, טופס עריכה, אזהרות וכפילויות
+- [x] **ג. העלאה וחילוץ**: צילום או העלאה, כיווץ, Claude API, zod, טופס עריכה, אזהרות וכפילויות
 - [ ] **ד. אישור והיסטוריה**: מסך אישורים, אישור או דחייה עם סיבה, הגשה מחדש, ציר היסטוריה
 - [ ] **ה. ייצוא והתראות**: CSV/Excel, סימון שולם, מיילים למנהל ולעובד
 - [ ] **ו. פריסה**: Vercel, משתני סביבה, כתובות Auth ב-Supabase, PWA
