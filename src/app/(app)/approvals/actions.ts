@@ -1,9 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { z } from "zod";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { notifyInvoice } from "@/lib/notify";
 
 // The database functions check that the caller is the invoice's current approver,
 // so these actions only validate input and report the outcome.
@@ -26,6 +28,7 @@ export async function approveInvoice(id: string, note: string): Promise<Decision
   });
   if (error) return { error: error.message };
   refresh(id);
+  after(() => notifyInvoice(id, data === "pending_second" ? "approved_first" : "approved"));
   return { ok: data === "pending_second" ? "אושר. החשבונית הועברה לאישור נוסף." : "החשבונית אושרה." };
 }
 
@@ -38,5 +41,6 @@ export async function rejectInvoice(id: string, reason: string): Promise<Decisio
   const { error } = await supabase.rpc("reject_invoice", { p_invoice_id: id, p_reason: trimmed.slice(0, 1000) });
   if (error) return { error: error.message };
   refresh(id);
+  after(() => notifyInvoice(id, "rejected"));
   return { ok: "החשבונית נדחתה והעובד יקבל הודעה." };
 }

@@ -1,11 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { z } from "zod";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { extractInvoice, MAX_FILE_BYTES, sniffMime, type Extraction } from "@/lib/extract";
 import { dbError } from "@/lib/action-result";
+import { notifyInvoice } from "@/lib/notify";
 
 const round2 = (n: number | null | undefined) => (n == null || !Number.isFinite(n) ? null : Math.round(n * 100) / 100);
 
@@ -183,6 +185,7 @@ export async function saveInvoice(id: string, input: InvoiceInput, submit: boole
       : { error: submitError.message };
   }
   revalidatePath("/");
+  after(() => notifyInvoice(id, "submitted"));
   return { ok: "submitted" };
 }
 
