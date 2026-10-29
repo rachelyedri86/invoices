@@ -29,6 +29,15 @@ export async function proxy(request: NextRequest) {
   const isLogin = path.startsWith("/login");
   if (path.startsWith("/auth/")) return response;
 
+  // Supabase sends sign-in links to the Site URL ("/?code=..."); hand the code to the callback.
+  const code = request.nextUrl.searchParams.get("code");
+  if (code) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/auth/callback";
+    url.search = `?code=${encodeURIComponent(code)}`;
+    return NextResponse.redirect(url);
+  }
+
   if (!signedIn && !isLogin) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";

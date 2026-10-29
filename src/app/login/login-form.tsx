@@ -82,9 +82,14 @@ export function LoginForm() {
     </form>
   ) : (
     <form onSubmit={verifyCode} className="space-y-4">
-      <p className="text-sm text-slate-600 dark:text-slate-300">
-        שלחנו קוד ל-<span dir="ltr">{email}</span>. הקלידו אותו כאן:
-      </p>
+      <div className="space-y-2 rounded-lg bg-blue-50 p-3 text-sm text-blue-900 dark:bg-blue-950 dark:text-blue-100">
+        <p>
+          שלחנו מייל ל-<span dir="ltr">{email}</span>.
+        </p>
+        <p>
+          <strong>פתחו אותו בדפדפן הזה ולחצו על הקישור.</strong> אם קיבלתם קוד מספרי, הקלידו אותו כאן:
+        </p>
+      </div>
       <input
         required
         dir="ltr"
@@ -95,7 +100,7 @@ export function LoginForm() {
         value={code}
         onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
         className={`${input} text-center text-2xl tracking-[0.4em]`}
-        autoFocus
+        placeholder="קוד"
       />
       {error && <p className="text-sm text-red-600">{error}</p>}
       <button disabled={busy} className={button}>

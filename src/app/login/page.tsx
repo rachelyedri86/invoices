@@ -30,6 +30,11 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
           המשתמש שלך אינו פעיל. פנה לאדמין.
         </p>
       )}
+      {error === "link" && (
+        <p className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950 dark:text-red-200">
+          הקישור לא תקין או שפג תוקפו. צריך לפתוח אותו באותו דפדפן שבו הוקלד המייל. בקשו קישור חדש.
+        </p>
+      )}
 
       <LoginForm />
 
