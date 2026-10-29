@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Heebo } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
+import { connection } from "next/server";
 import { serverPublicEnv } from "@/lib/public-env";
 
 const heebo = Heebo({
@@ -24,7 +25,9 @@ export const viewport: Viewport = {
 // JSON cannot close the script tag.
 const envScript = () => `window.__ENV=${JSON.stringify(serverPublicEnv()).split("<").join("\\u003c")}`;
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  // Render every page per request, so window.__ENV holds the runtime values, never the empty build-time ones.
+  await connection();
   return (
     <html lang="he" dir="rtl" className={`${heebo.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
