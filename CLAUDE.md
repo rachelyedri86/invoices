@@ -70,18 +70,32 @@
 5. `/accounting`: ייצוא CSV/Excel וסימון "שולם"
 6. `/admin`: משתמשים, תפקידים, מחלקות וקטגוריות
 
-## משתני סביבה (`.env.local`, לא עולה ל-git)
+## משתני סביבה (`.env.local`, לא עולה ל-git; תבנית ב-`.env.example`)
 ```
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=     # שרת בלבד
-ANTHROPIC_API_KEY=             # שרת בלבד
-RESEND_API_KEY=                # או SMTP, לשלב ה'
+NEXT_PUBLIC_SUPABASE_URL=              # https://zcfvwibujznsmtdiosbn.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=  # sb_publishable_...
+SUPABASE_SECRET_KEY=                   # sb_secret_...  שרת בלבד
+SUPABASE_DB_URL=                       # Session pooler, למיגרציות בלבד
+ANTHROPIC_API_KEY=                     # שרת בלבד (נדרש משלב ג')
+SEED_EMAIL=                            # בסיס לכתובות משתמשי הדמו (+admin, +employee…)
 APP_URL=http://localhost:3000
 ```
+- המשתמשת ממלאת סודות ישירות בקובץ, לא בצ'אט. לבדוק ערכים רק לפי צורה ואורך, בלי להדפיס אותם.
+
+## פקודות
+- `npm run dev`: שרת פיתוח
+- `npm run db:push`: החלת מיגרציות מ-`supabase/migrations` על פרויקט הענן (דרך `SUPABASE_DB_URL`)
+- `npm run db:seed`: נתוני דמה (אפשר להריץ שוב)
+- `npm run db:test`: בדיקות RLS ותהליך האישור מול מסד הנתונים האמיתי, בתור כל משתמש דמו
+
+## מבנה
+- `supabase/migrations/`: סכמה, פונקציות תהליך (`submit_invoice`, `approve_invoice`, `reject_invoice`, `mark_invoices_paid`, `invoice_duplicate_exists`), RLS ו-Storage. שינוי סכמה = קובץ מיגרציה חדש, לא עריכה של קובץ שכבר הוחל.
+- סטטוס משתנה רק דרך פונקציות התהליך. למשתמשים יש הרשאת עדכון רק לעמודות שניתנות לעריכה.
+- `src/lib/supabase/`: `server.ts` (משתמש מחובר), `client.ts` (דפדפן), `admin.ts` (מפתח סודי, שרת בלבד)
+- Next.js 16 עם `cacheComponents`: קריאות לנתונים לא מטומנים עטופות ב-`<Suspense>` (ראו `node_modules/next/dist/docs`)
 
 ## תוכנית עבודה
-- [ ] **א. הקמה**: פרויקט Next.js, git, חיבור ל-Supabase, מיגרציות SQL (טבלאות, RLS, triggers, bucket), seed עם משתמש מכל תפקיד
+- [x] **א. הקמה**: פרויקט Next.js, git, חיבור ל-Supabase, מיגרציות SQL (טבלאות, RLS, triggers, bucket), seed עם משתמש מכל תפקיד
 - [ ] **ב. התחברות ותפקידים**: OTP במייל, middleware, ניווט לפי תפקיד, מסך אדמין (משתמשים ומנהלים, מחלקות, קטגוריות, מטבעות, סף אישור)
 - [ ] **ג. העלאה וחילוץ**: צילום או העלאה, כיווץ, Claude API, zod, טופס עריכה, אזהרות וכפילויות
 - [ ] **ד. אישור והיסטוריה**: מסך אישורים, אישור או דחייה עם סיבה, הגשה מחדש, ציר היסטוריה
@@ -89,7 +103,7 @@ APP_URL=http://localhost:3000
 - [ ] **ו. פריסה**: Vercel, משתני סביבה, כתובות Auth ב-Supabase, PWA
 
 ## נתוני דמה
-משתמש אחד מכל תפקיד (כתובות `+alias` של מייל אמיתי, כדי שקוד ה-OTP יגיע), שתי מחלקות, כמה קטגוריות וכמה חשבוניות בסטטוסים שונים.
+משתמש אחד מכל תפקיד, ועוד מנהלת בכירה לאישור הנוסף (כתובות `+alias` של `SEED_EMAIL`, כדי שקוד ה-OTP יגיע). היררכיה: עובדת → משה מנהל → דנה בכירה; חשבונות → דנה בכירה, שתי מחלקות, כמה קטגוריות וכמה חשבוניות בסטטוסים שונים.
 
 ## החלטות שהתקבלו
 - מנהל ישיר לכל עובד, ונקבע על ידי האדמין
