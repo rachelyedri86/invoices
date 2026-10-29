@@ -8,6 +8,9 @@ import { StatusBadge } from "@/components/status-badge";
 import { formatMoney, formatDate } from "@/lib/format";
 import { FilePreview } from "./file-preview";
 import { InvoiceEditor } from "./invoice-editor";
+import { DecisionPanel } from "./decision-panel";
+import { History, type HistoryEntry } from "./history";
+import { ReplaceFile } from "./replace-file";
 
 export default async function InvoicePage({ params, searchParams }: PageProps<"/invoices/[id]">) {
   const user = await requireUser();
@@ -18,7 +21,7 @@ export default async function InvoicePage({ params, searchParams }: PageProps<"/
   const supabase = await createClient();
   const { data: invoice } = await supabase
     .from("invoices")
-    .select("*, invoice_items(description, quantity, amount, position), category:categories(name), department:departments(name)")
+    .select("*, invoice_items(description, quantity, amount, position), category:categories(name), department:departments(name), employee:profiles!invoices_employee_id_fkey(full_name, email), first_approver:profiles!invoices_first_approver_id_fkey(full_name)")
     .eq("id", id)
     .maybeSingle();
   if (!invoice) notFound();
@@ -27,9 +30,23 @@ export default async function InvoicePage({ params, searchParams }: PageProps<"/
   const signed = invoice.file_path
     ? (await supabase.storage.from("invoices").createSignedUrl(invoice.file_path, 600)).data?.signedUrl
     : null;
+  const { data: historyRows } = await supabase
+    .from("invoice_history")
+    .select("id, from_status, to_status, note, changes, created_at, actor:profiles(full_name)")
+    .eq("invoice_id", id)
+    .order("id");
+  const history = <History entries={(historyRows ?? []) as HistoryEntry[]} />;
   const editable = invoice.employee_id === user.id && (invoice.status === "draft" || invoice.status === "rejected");
 
-  const preview = <FilePreview url={signed ?? null} mime={invoice.file_mime} />;
+  const filePreview = <FilePreview url={signed ?? null} mime={invoice.file_mime} />;
+  const preview = editable ? (
+    <div className="space-y-2">
+      {filePreview}
+      <ReplaceFile invoiceId={invoice.id} userId={user.id} hasFile={!!invoice.file_path} />
+    </div>
+  ) : (
+    filePreview
+  );
 
   if (editable) {
     const [{ data: categories }, { data: departments }, { data: currencies }, { data: duplicate }] = await Promise.all([
@@ -55,6 +72,7 @@ export default async function InvoicePage({ params, searchParams }: PageProps<"/
         initialDuplicate={!!duplicate}
         warning={typeof warning === "string" ? warning : undefined}
         preview={preview}
+        history={history}
       />
     );
   }
@@ -75,9 +93,24 @@ export default async function InvoicePage({ params, searchParams }: PageProps<"/
         <StatusBadge status={invoice.status} />
       </div>
       <h1 className="text-2xl font-bold">{invoice.supplier_name ?? "חשבונית"}</h1>
+      {invoice.employee_id !== user.id && invoice.employee && (
+        <p className="-mt-3 text-slate-500">הוגשה על ידי {invoice.employee.full_name || invoice.employee.email}</p>
+      )}
+      {invoice.status === "rejected" && invoice.rejection_reason && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
+          <strong>סיבת הדחייה:</strong> {invoice.rejection_reason}
+        </div>
+      )}
       <div className="grid gap-4 lg:grid-cols-2">
         {preview}
         <div className="space-y-4">
+          {invoice.current_approver_id === user.id && (
+            <DecisionPanel
+              invoiceId={invoice.id}
+              secondStage={invoice.status === "pending_second"}
+              firstApprover={invoice.first_approver?.full_name}
+            />
+          )}
           <dl className={cardClass}>
             {row("ספק", invoice.supplier_name)}
             {row("עוסק מורשה / ח.פ", invoice.supplier_tax_id)}
@@ -110,6 +143,7 @@ export default async function InvoicePage({ params, searchParams }: PageProps<"/
               </ul>
             </div>
           )}
+          {history}
         </div>
       </div>
     </div>

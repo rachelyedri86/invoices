@@ -21,6 +21,7 @@ type Props = {
   initialDuplicate: boolean;
   warning?: string;
   preview: React.ReactNode;
+  history: React.ReactNode;
 };
 
 // Inputs hold strings; they are converted to numbers/nulls only when saving.
@@ -36,7 +37,7 @@ const textOrNull = (v: string) => (v.trim() ? v.trim() : null);
 const REQUIRED = ["supplier_name", "invoice_number", "invoice_date", "total_amount"] as const;
 const SHOULD_HAVE = ["supplier_tax_id", "doc_type", "amount_before_vat", "vat_amount"] as const;
 
-export function InvoiceEditor({ invoice, items: initialItems, categories, departments, currencies, initialDuplicate, warning, preview }: Props) {
+export function InvoiceEditor({ invoice, items: initialItems, categories, departments, currencies, initialDuplicate, warning, preview, history }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<{ ok?: string; error?: string } | null>(null);
@@ -337,6 +338,7 @@ export function InvoiceEditor({ invoice, items: initialItems, categories, depart
               </button>
             )}
           </div>
+          {history}
         </div>
       </div>
     </div>

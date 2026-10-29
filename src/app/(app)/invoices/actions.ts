@@ -186,6 +186,36 @@ export async function saveInvoice(id: string, input: InvoiceInput, submit: boole
   return { ok: "submitted" };
 }
 
+/** Attaches a new file (already uploaded by the browser) to an editable invoice, replacing the old one. */
+export async function replaceFile(id: string, path: string): Promise<{ error?: string }> {
+  const user = await requireUser();
+  if (!z.string().uuid().safeParse(id).success) return { error: "חשבונית לא תקינה" };
+  if (!new RegExp(`^${user.id}/[0-9a-f-]{36}\\.(jpg|png|webp|pdf)$`).test(path)) return { error: "קובץ לא תקין" };
+
+  const supabase = await createClient();
+  const { data: blob } = await supabase.storage.from("invoices").download(path);
+  const bytes = blob ? Buffer.from(await blob.arrayBuffer()) : null;
+  const mime = bytes ? sniffMime(bytes) : null;
+  if (!bytes || !mime || bytes.length > MAX_FILE_BYTES) {
+    await supabase.storage.from("invoices").remove([path]);
+    return { error: "אפשר להעלות רק תמונה (JPG, PNG, WebP) או PDF, עד 10MB." };
+  }
+
+  const { data: before } = await supabase.from("invoices").select("file_path").eq("id", id).maybeSingle();
+  const { data: updated } = await supabase
+    .from("invoices")
+    .update({ file_path: path, file_mime: mime })
+    .eq("id", id)
+    .select("id");
+  if (!updated?.length) {
+    await supabase.storage.from("invoices").remove([path]);
+    return { error: "אי אפשר לשנות את הקובץ של החשבונית הזו." };
+  }
+  if (before?.file_path && before.file_path !== path) await supabase.storage.from("invoices").remove([before.file_path]);
+  revalidatePath(`/invoices/${id}`);
+  return {};
+}
+
 /** Deletes a draft and its file. */
 export async function deleteDraft(id: string): Promise<{ error?: string }> {
   await requireUser();

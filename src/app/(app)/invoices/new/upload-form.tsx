@@ -2,30 +2,8 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { uploadInvoiceFile } from "@/lib/upload-file";
 import { processUpload } from "../actions";
-
-const MAX_BYTES = 10 * 1024 * 1024;
-const ACCEPTED: Record<string, string> = {
-  "image/jpeg": "jpg",
-  "image/png": "png",
-  "image/webp": "webp",
-  "application/pdf": "pdf",
-};
-
-/** Shrinks a photo in the browser (long side up to 2000px, JPEG) so uploads from phones are quick. */
-async function compressImage(file: File): Promise<Blob> {
-  const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
-  const scale = Math.min(1, 2000 / Math.max(bitmap.width, bitmap.height));
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.round(bitmap.width * scale);
-  canvas.height = Math.round(bitmap.height * scale);
-  canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  bitmap.close();
-  return new Promise((resolve, reject) =>
-    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("compress"))), "image/jpeg", 0.85),
-  );
-}
 
 export function UploadForm({ userId }: { userId: string }) {
   const router = useRouter();
@@ -37,48 +15,16 @@ export function UploadForm({ userId }: { userId: string }) {
   async function handleFile(file: File | undefined) {
     if (!file) return;
     setError(null);
-
-    const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
-    if (!isPdf && !file.type.startsWith("image/")) {
-      setError("אפשר להעלות רק תמונה (JPG, PNG, WebP) או PDF.");
-      return;
-    }
-    if (file.size > MAX_BYTES * (isPdf ? 1 : 3)) {
-      setError("הקובץ גדול מדי (עד 10MB).");
-      return;
-    }
-
     setStage("uploading");
-    let body: Blob = file;
-    let mime = isPdf ? "application/pdf" : file.type;
-    if (!isPdf) {
-      try {
-        body = await compressImage(file);
-        mime = "image/jpeg";
-      } catch {
-        setStage("idle");
-        setError("לא הצלחנו לפתוח את התמונה (ייתכן שהפורמט לא נתמך). צלמו שוב או העלו JPG/PNG.");
-        return;
-      }
-    }
-    if (!ACCEPTED[mime] || body.size > MAX_BYTES) {
+    const uploaded = await uploadInvoiceFile(userId, file);
+    if (!uploaded.path) {
       setStage("idle");
-      setError("אפשר להעלות רק תמונה (JPG, PNG, WebP) או PDF, עד 10MB.");
-      return;
-    }
-
-    const path = `${userId}/${crypto.randomUUID()}.${ACCEPTED[mime]}`;
-    const { error: uploadError } = await createClient()
-      .storage.from("invoices")
-      .upload(path, body, { contentType: mime });
-    if (uploadError) {
-      setStage("idle");
-      setError("ההעלאה נכשלה. בדקו את החיבור ונסו שוב.");
+      setError(uploaded.error ?? "ההעלאה נכשלה.");
       return;
     }
 
     setStage("reading");
-    const result = await processUpload(path);
+    const result = await processUpload(uploaded.path);
     if (!result.id) {
       setStage("idle");
       setError(result.error ?? "משהו השתבש. נסו שוב.");

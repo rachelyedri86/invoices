@@ -97,6 +97,8 @@ APP_URL=http://localhost:3000
 - Cache Components כבויים (`next.config.ts`): כל המסכים תלויי משתמש
 - העלאה: הדפדפן מכווץ תמונה (עד 2000px JPEG) ומעלה ישירות ל-Storage (`{uid}/{uuid}.ext`); `processUpload` בשרת מוריד, בודק סוג אמיתי לפי bytes וגודל, שולח ל-Claude ויוצר טיוטה
 - `src/lib/extract.ts`: `claude-sonnet-5-5`, `client.beta.messages.parse` + `betaZodOutputFormat` (JSON מאומת, שדה שלא נמצא = null), `fallbacks: "default"`. PDF נשלח כ-document, תמונה מוקטנת ל-1600px עם sharp
+- אישורים: `/approvals` (ממתינות לי / אישרתי / דחיתי / כל הצוות + סינון תאריך וסכום בשקלים). ההחלטה עצמה בדף החשבונית (`DecisionPanel`, מוצג רק ל-`current_approver_id`), דרך `approve_invoice` / `reject_invoice`
+- היסטוריה: `invoice_history` (נכתבת ב-trigger) מוצגת בדף החשבונית. עובד יכול לצרף/להחליף קובץ בטיוטה או בחשבונית שנדחתה (`replaceFile`)
 - `samples/`: חשבוניות לדוגמה (PNG/PDF) לבדיקה ידנית
 - אחרי מיגרציה חדשה: `npm run db:types` מעדכן את `src/lib/database.types.ts`
 - `supabase/migrations/`: סכמה, פונקציות תהליך (`submit_invoice`, `approve_invoice`, `reject_invoice`, `mark_invoices_paid`, `invoice_duplicate_exists`), RLS ו-Storage. שינוי סכמה = קובץ מיגרציה חדש, לא עריכה של קובץ שכבר הוחל.
@@ -108,7 +110,7 @@ APP_URL=http://localhost:3000
 - [x] **א. הקמה**: פרויקט Next.js, git, חיבור ל-Supabase, מיגרציות SQL (טבלאות, RLS, triggers, bucket), seed עם משתמש מכל תפקיד
 - [x] **ב. התחברות ותפקידים**: OTP במייל, middleware, ניווט לפי תפקיד, מסך אדמין (משתמשים ומנהלים, מחלקות, קטגוריות, מטבעות, סף אישור)
 - [x] **ג. העלאה וחילוץ**: צילום או העלאה, כיווץ, Claude API, zod, טופס עריכה, אזהרות וכפילויות
-- [ ] **ד. אישור והיסטוריה**: מסך אישורים, אישור או דחייה עם סיבה, הגשה מחדש, ציר היסטוריה
+- [x] **ד. אישור והיסטוריה**: מסך אישורים, אישור או דחייה עם סיבה, הגשה מחדש, ציר היסטוריה
 - [ ] **ה. ייצוא והתראות**: CSV/Excel, סימון שולם, מיילים למנהל ולעובד
 - [ ] **ו. פריסה**: Vercel, משתני סביבה, כתובות Auth ב-Supabase, PWA
 
