@@ -1,3 +1,4 @@
+import { HashSession } from "@/app/auth/confirm/hash-session";
 import { LoginForm } from "./login-form";
 import { devSignIn } from "./actions";
 import { ROLE_LABELS } from "@/lib/labels";
@@ -5,7 +6,7 @@ import { xhostEnabled } from "@/lib/xhost";
 
 const ERRORS: Record<string, string> = {
   inactive: "המשתמש שלך אינו פעיל. פנה לאדמין.",
-  link: "הקישור לא תקין או שפג תוקפו. צריך לפתוח אותו באותו דפדפן שבו הוקלד המייל. בקשו קישור חדש.",
+  link: "הקישור לא תקין או שפג תוקפו (כל קישור עובד פעם אחת). בקשו קישור חדש.",
   not_registered: "חשבון ה-Google הזה לא רשום במערכת. בקשו מהאדמין להוסיף את כתובת המייל שלכם.",
   sso: "הכניסה עם Google נכשלה. נסו שוב.",
 };
@@ -55,6 +56,8 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
         </>
       )}
 
+      {/* A sign-in link that fell back to the Site URL arrives here with the session in the fragment. */}
+      <HashSession />
       <LoginForm />
 
       {showDemo && (

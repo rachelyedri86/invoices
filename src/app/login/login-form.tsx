@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { sendLoginLink } from "./actions";
 
 // Two steps: enter email -> receive a one-time code by email -> enter the code.
 export function LoginForm() {
@@ -17,19 +18,15 @@ export function LoginForm() {
     e.preventDefault();
     setBusy(true);
     setError(null);
-    const { error } = await createClient().auth.signInWithOtp({
-      email: email.trim().toLowerCase(),
-      // Only users an admin added can sign in.
-      options: { shouldCreateUser: false },
-    });
+    const { error } = await sendLoginLink(email);
     setBusy(false);
     if (error) {
       setError(
-        error.code === "otp_disabled" || /signups? not allowed/i.test(error.message)
+        error === "not_registered"
           ? "כתובת המייל לא רשומה במערכת. פנה לאדמין."
-          : error.status === 429
-            ? "נשלחו יותר מדי קודים. נסה שוב בעוד כמה דקות."
-            : "שליחת הקוד נכשלה. נסה שוב.",
+          : error === "rate_limit"
+            ? "נשלחו יותר מדי מיילים. נסה שוב בעוד כמה דקות."
+            : "שליחת המייל נכשלה. נסה שוב.",
       );
       return;
     }
@@ -87,7 +84,7 @@ export function LoginForm() {
           שלחנו מייל ל-<span dir="ltr">{email}</span>.
         </p>
         <p>
-          <strong>פתחו אותו בדפדפן הזה ולחצו על הקישור.</strong> אם קיבלתם קוד מספרי, הקלידו אותו כאן:
+          <strong>פתחו אותו ולחצו על הקישור</strong> (אפשר גם מהטלפון). אם קיבלתם קוד מספרי, הקלידו אותו כאן:
         </p>
       </div>
       <input
