@@ -89,6 +89,13 @@ APP_URL=http://localhost:3000
 - `npm run db:test`: בדיקות RLS ותהליך האישור מול מסד הנתונים האמיתי, בתור כל משתמש דמו
 
 ## מבנה
+- `src/proxy.ts`: רענון session והפניה ל-`/login` (רק נוחות; ההרשאות האמיתיות ב-`requireUser/requireRole` וב-RLS)
+- `src/lib/auth.ts`: `requireUser()` / `requireRole(...)` בראש כל דף ו-server action. משתמש מושבת מנותב ל-`/auth/signout`
+- `src/app/(app)/`: כל המסכים המוגנים; `admin/actions.ts` עם server actions לניהול. השבתת משתמש = `active=false` + ban ב-Auth
+- טפסים: `ActionForm` (useActionState) + server action שמחזירה `ActionResult`
+- התחברות: OTP במייל, `shouldCreateUser: false` (רק משתמשים שאדמין הוסיף). בפיתוח יש כפתורי כניסה מהירה למשתמשי דמו (`NODE_ENV=development` בלבד)
+- Cache Components כבויים (`next.config.ts`): כל המסכים תלויי משתמש
+- אחרי מיגרציה חדשה: `npm run db:types` מעדכן את `src/lib/database.types.ts`
 - `supabase/migrations/`: סכמה, פונקציות תהליך (`submit_invoice`, `approve_invoice`, `reject_invoice`, `mark_invoices_paid`, `invoice_duplicate_exists`), RLS ו-Storage. שינוי סכמה = קובץ מיגרציה חדש, לא עריכה של קובץ שכבר הוחל.
 - סטטוס משתנה רק דרך פונקציות התהליך. למשתמשים יש הרשאת עדכון רק לעמודות שניתנות לעריכה.
 - `src/lib/supabase/`: `server.ts` (משתמש מחובר), `client.ts` (דפדפן), `admin.ts` (מפתח סודי, שרת בלבד)
@@ -96,7 +103,7 @@ APP_URL=http://localhost:3000
 
 ## תוכנית עבודה
 - [x] **א. הקמה**: פרויקט Next.js, git, חיבור ל-Supabase, מיגרציות SQL (טבלאות, RLS, triggers, bucket), seed עם משתמש מכל תפקיד
-- [ ] **ב. התחברות ותפקידים**: OTP במייל, middleware, ניווט לפי תפקיד, מסך אדמין (משתמשים ומנהלים, מחלקות, קטגוריות, מטבעות, סף אישור)
+- [x] **ב. התחברות ותפקידים**: OTP במייל, middleware, ניווט לפי תפקיד, מסך אדמין (משתמשים ומנהלים, מחלקות, קטגוריות, מטבעות, סף אישור)
 - [ ] **ג. העלאה וחילוץ**: צילום או העלאה, כיווץ, Claude API, zod, טופס עריכה, אזהרות וכפילויות
 - [ ] **ד. אישור והיסטוריה**: מסך אישורים, אישור או דחייה עם סיבה, הגשה מחדש, ציר היסטוריה
 - [ ] **ה. ייצוא והתראות**: CSV/Excel, סימון שולם, מיילים למנהל ולעובד
