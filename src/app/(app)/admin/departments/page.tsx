@@ -7,7 +7,7 @@ import { addNamed, deleteDepartment, updateNamed } from "../actions";
 export default async function DepartmentsPage() {
   await requireRole("admin");
   const supabase = await createClient();
-  const { data } = await supabase.from("departments").select("id, name").order("name");
+  const { data } = await supabase.from("departments").select("id, name").order("position").order("name");
 
   return (
     <div className="space-y-4">

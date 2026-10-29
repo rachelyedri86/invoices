@@ -14,8 +14,8 @@ export default async function AccountingPage({ searchParams }: PageProps<"/accou
 
   const [{ data: invoices }, { data: categories }, { data: departments }] = await Promise.all([
     accountingQuery(supabase, filters),
-    supabase.from("categories").select("id, name").order("name"),
-    supabase.from("departments").select("id, name").order("name"),
+    supabase.from("categories").select("id, name").order("position").order("name"),
+    supabase.from("departments").select("id, name").order("position").order("name"),
   ]);
   const rows = (invoices ?? []).map((i) => ({
     id: i.id,

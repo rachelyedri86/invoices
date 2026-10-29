@@ -7,14 +7,14 @@ export type Database = {
           Tables: {
             "categories": {
                   Row: {
-                    "active": boolean,"created_at": string,"id": string,"name": string
+                    "active": boolean,"created_at": string,"id": string,"name": string,"position": number
                   }
                   ComputedFields: never
                   Insert: {
-                    "active"?: boolean,"created_at"?: string,"id"?: string,"name": string
+                    "active"?: boolean,"created_at"?: string,"id"?: string,"name": string,"position"?: number
                   }
                   Update: {
-                    "active"?: boolean,"created_at"?: string,"id"?: string,"name"?: string
+                    "active"?: boolean,"created_at"?: string,"id"?: string,"name"?: string,"position"?: number
                   }
                   Relationships: [
                     
@@ -35,14 +35,14 @@ export type Database = {
                   ]
                 },"departments": {
                   Row: {
-                    "created_at": string,"id": string,"name": string
+                    "created_at": string,"id": string,"name": string,"position": number
                   }
                   ComputedFields: never
                   Insert: {
-                    "created_at"?: string,"id"?: string,"name": string
+                    "created_at"?: string,"id"?: string,"name": string,"position"?: number
                   }
                   Update: {
-                    "created_at"?: string,"id"?: string,"name"?: string
+                    "created_at"?: string,"id"?: string,"name"?: string,"position"?: number
                   }
                   Relationships: [
                     

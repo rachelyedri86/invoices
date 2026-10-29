@@ -12,7 +12,7 @@ export default async function UsersPage() {
   const supabase = await createClient();
   const [{ data: people }, { data: departments }] = await Promise.all([
     supabase.from("profiles").select("id, email, full_name, role, department_id, manager_id, active").order("full_name"),
-    supabase.from("departments").select("id, name").order("name"),
+    supabase.from("departments").select("id, name").order("position").order("name"),
   ]);
   const users = people ?? [];
   const depts = departments ?? [];

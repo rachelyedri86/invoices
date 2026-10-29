@@ -44,7 +44,11 @@ export function InvoiceEditor({ invoice, items: initialItems, categories, depart
   const [duplicate, setDuplicate] = useState(initialDuplicate);
   const [triedSubmit, setTriedSubmit] = useState(false);
 
-  const [f, setF] = useState({
+  // What the automatic reading filled in, so it can be pointed out for checking.
+  const raw = (invoice.extraction_raw ?? null) as { derived?: string[]; category_suggested?: boolean; is_invoice?: boolean } | null;
+  const derived = raw?.derived ?? [];
+
+  const [initial] = useState(() => ({
     supplier_name: str(invoice.supplier_name),
     supplier_tax_id: str(invoice.supplier_tax_id),
     doc_type: str(invoice.doc_type),
@@ -59,7 +63,13 @@ export function InvoiceEditor({ invoice, items: initialItems, categories, depart
     department_id: str(invoice.department_id),
     project: str(invoice.project),
     notes: str(invoice.notes),
-  });
+  }));
+  const [f, setF] = useState(initial);
+  const autoFilled = raw
+    ? (["supplier_name", "supplier_tax_id", "doc_type", "invoice_number", "invoice_date", "allocation_number", "amount_before_vat", "vat_amount", "total_amount", "category_id"] as const).filter(
+        (k) => initial[k],
+      ).length
+    : 0;
   const [items, setItems] = useState(
     initialItems.map((i) => ({ description: str(i.description), quantity: str(i.quantity), amount: str(i.amount) })),
   );
@@ -143,6 +153,7 @@ export function InvoiceEditor({ invoice, items: initialItems, categories, depart
         <span className={`${labelClass} flex items-center gap-2`}>
           {label}
           {(REQUIRED as readonly string[]).includes(key) && <span className="text-red-600">*</span>}
+          {derived.includes(key) && f[key] === initial[key] && <AutoBadge text="חושב" title="חושב משני הסכומים האחרים בחשבונית" />}
           {show && (
             <span
               className={`rounded px-1.5 text-xs font-normal ${
@@ -177,6 +188,11 @@ export function InvoiceEditor({ invoice, items: initialItems, categories, depart
           <strong>החשבונית נדחתה:</strong> {invoice.rejection_reason}
           <div className="mt-1 text-sm">תקנו את מה שצריך ושלחו שוב לאישור.</div>
         </div>
+      )}
+      {invoice.status === "draft" && autoFilled > 0 && (
+        <Alert tone="blue">
+          ✨ {autoFilled} שדות מולאו אוטומטית מתוך החשבונית. עברו עליהם מול התמונה ותקנו אם צריך לפני השליחה.
+        </Alert>
       )}
       {warning && <Alert tone="amber">{warning}</Alert>}
       {duplicate && (
@@ -287,6 +303,11 @@ export function InvoiceEditor({ invoice, items: initialItems, categories, depart
             <label className="block">
               <span className={labelClass}>
                 קטגוריה <span className="text-red-600">*</span>
+                {raw?.category_suggested && f.category_id && f.category_id === initial.category_id && (
+                  <span className="ms-2">
+                    <AutoBadge text="הוצעה" title="הקטגוריה הוצעה אוטומטית לפי תוכן החשבונית" />
+                  </span>
+                )}
               </span>
               <select
                 value={f.category_id}
@@ -345,8 +366,17 @@ export function InvoiceEditor({ invoice, items: initialItems, categories, depart
   );
 }
 
-function Alert({ tone, children }: { tone: "red" | "amber" | "green"; children: React.ReactNode }) {
+function AutoBadge({ text, title }: { text: string; title: string }) {
+  return (
+    <span title={title} className="rounded bg-blue-100 px-1.5 text-xs font-normal text-blue-800 dark:bg-blue-950 dark:text-blue-200">
+      ✨ {text}
+    </span>
+  );
+}
+
+function Alert({ tone, children }: { tone: "red" | "amber" | "green" | "blue"; children: React.ReactNode }) {
   const colors = {
+    blue: "border-blue-200 bg-blue-50 text-blue-900 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-100",
     red: "border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200",
     amber: "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200",
     green: "border-green-200 bg-green-50 text-green-800 dark:border-green-900 dark:bg-green-950 dark:text-green-200",

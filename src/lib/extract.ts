@@ -36,6 +36,7 @@ const ExtractionSchema = z.object({
   vat_amount: z.number().nullable(),
   total_amount: z.number().nullable(),
   currency: z.string().nullable(),
+  category: z.string().nullable(),
   items: z.array(
     z.object({
       description: z.string().nullable(),
@@ -60,12 +61,14 @@ Rules:
 - amount_before_vat, vat_amount, total_amount: plain numbers without currency signs or thousands separators. total_amount is the final amount including VAT.
 - currency: ISO 4217 code (₪ or ש"ח = ILS, $ = USD, € = EUR).
 - items: the line items (description, quantity, line total). Use an empty list if there are none.
+- category: pick the best-matching expense category from the list given in the request, copied exactly. null if none fits.
+- Read the whole document, including small print, headers and footers, so that every field that appears anywhere is filled.
 - is_invoice: false if the file is not an invoice or receipt at all.`;
 
 let client: Anthropic | null = null;
 
 /** Sends the file to Claude and returns the fields, or throws with a Hebrew message. */
-export async function extractInvoice(file: Buffer, mime: AllowedMime): Promise<Extraction> {
+export async function extractInvoice(file: Buffer, mime: AllowedMime, categories: string[] = []): Promise<Extraction> {
   client ??= new Anthropic();
 
   let fileBlock: Anthropic.Beta.BetaContentBlockParam;
@@ -93,7 +96,11 @@ export async function extractInvoice(file: Buffer, mime: AllowedMime): Promise<E
       fallbacks: "default",
       output_config: { effort: "medium", format: betaZodOutputFormat(ExtractionSchema) },
       system: SYSTEM,
-      messages: [{ role: "user", content: [fileBlock, { type: "text", text: "Extract the fields from this document." }] }],
+      messages: [{ role: "user", content: [fileBlock, {
+            type: "text",
+            text: `Extract the fields from this document.
+Expense categories: ${categories.length ? categories.join(" | ") : "(none)"}`,
+          }] }],
     });
   } catch (error) {
     if (error instanceof Anthropic.RateLimitError) throw new Error("שירות הזיהוי עמוס כרגע. נסו שוב בעוד דקה.");

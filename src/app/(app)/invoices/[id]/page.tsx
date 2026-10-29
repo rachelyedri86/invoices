@@ -50,8 +50,8 @@ export default async function InvoicePage({ params, searchParams }: PageProps<"/
 
   if (editable) {
     const [{ data: categories }, { data: departments }, { data: currencies }, { data: duplicate }] = await Promise.all([
-      supabase.from("categories").select("id, name, active").order("name"),
-      supabase.from("departments").select("id, name").order("name"),
+      supabase.from("categories").select("id, name, active").order("position").order("name"),
+      supabase.from("departments").select("id, name").order("position").order("name"),
       supabase.from("currencies").select("code, name").order("code"),
       invoice.invoice_number
         ? supabase.rpc("invoice_duplicate_exists", {

@@ -11,8 +11,15 @@ function check(label, { data, error }) {
   return data;
 }
 
+// Names are listed in display order; "אחר" always goes last.
 async function upsertNamed(table, names) {
-  const rows = check(table, await admin.from(table).upsert(names.map((name) => ({ name })), { onConflict: "name" }).select());
+  const rows = check(
+    table,
+    await admin
+      .from(table)
+      .upsert(names.map((name, i) => ({ name, position: name === "אחר" ? 999 : (i + 1) * 10 })), { onConflict: "name" })
+      .select(),
+  );
   return Object.fromEntries(rows.map((r) => [r.name, r.id]));
 }
 
@@ -32,7 +39,7 @@ async function ensureUser({ email, full_name }) {
 }
 
 // ---------- Reference data ----------
-const departments = await upsertNamed("departments", ["הנהלה", "תפעול", "כספים", "שיווק"]);
+const departments = await upsertNamed("departments", ["הנהלה", "עיתונאים", "גיוס משאבים", "סטודנטים", "אחר"]);
 const categories = await upsertNamed("categories", [
   "נסיעות ודלק",
   "כיבוד וארוחות",
@@ -59,9 +66,9 @@ for (const [key, person] of Object.entries(people)) ids[key] = await ensureUser(
 const profileUpdates = {
   admin: { department_id: departments["הנהלה"], manager_id: null },
   senior: { department_id: departments["הנהלה"], manager_id: null },
-  manager: { department_id: departments["תפעול"], manager_id: ids.senior },
-  employee: { department_id: departments["תפעול"], manager_id: ids.manager },
-  accounting: { department_id: departments["כספים"], manager_id: ids.senior },
+  manager: { department_id: departments["עיתונאים"], manager_id: ids.senior },
+  employee: { department_id: departments["עיתונאים"], manager_id: ids.manager },
+  accounting: { department_id: departments["אחר"], manager_id: ids.senior },
 };
 for (const [key, person] of Object.entries(people)) {
   check(

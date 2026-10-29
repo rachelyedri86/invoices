@@ -7,7 +7,7 @@ import { addNamed, updateNamed } from "../actions";
 export default async function CategoriesPage() {
   await requireRole("admin");
   const supabase = await createClient();
-  const { data } = await supabase.from("categories").select("id, name, active").order("name");
+  const { data } = await supabase.from("categories").select("id, name, active").order("position").order("name");
 
   return (
     <div className="space-y-4">

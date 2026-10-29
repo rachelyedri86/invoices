@@ -99,6 +99,8 @@ APP_URL=http://localhost:3000
 - `src/lib/extract.ts`: `claude-sonnet-5-5`, `client.beta.messages.parse` + `betaZodOutputFormat` (JSON מאומת, שדה שלא נמצא = null), `fallbacks: "default"`. PDF נשלח כ-document, תמונה מוקטנת ל-1600px עם sharp
 - אישורים: `/approvals` (ממתינות לי / אישרתי / דחיתי / כל הצוות + סינון תאריך וסכום בשקלים). ההחלטה עצמה בדף החשבונית (`DecisionPanel`, מוצג רק ל-`current_approver_id`), דרך `approve_invoice` / `reject_invoice`
 - היסטוריה: `invoice_history` (נכתבת ב-trigger) מוצגת בדף החשבונית. עובד יכול לצרף/להחליף קובץ בטיוטה או בחשבונית שנדחתה (`replaceFile`)
+- מילוי אוטומטי: Claude מציע קטגוריה מתוך הרשימה הפעילה; כשמופיעים 2 מתוך 3 סכומים השלישי מחושב. `extraction_raw.derived` / `category_suggested` מסמנים בעורך שדות "✨ חושב" / "✨ הוצעה"
+- מחלקות וקטגוריות ממוינות לפי `position` ואז שם ("אחר" = 999, תמיד אחרון)
 - `samples/`: חשבוניות לדוגמה (PNG/PDF) לבדיקה ידנית
 - אחרי מיגרציה חדשה: `npm run db:types` מעדכן את `src/lib/database.types.ts`
 - `supabase/migrations/`: סכמה, פונקציות תהליך (`submit_invoice`, `approve_invoice`, `reject_invoice`, `mark_invoices_paid`, `invoice_duplicate_exists`), RLS ו-Storage. שינוי סכמה = קובץ מיגרציה חדש, לא עריכה של קובץ שכבר הוחל.

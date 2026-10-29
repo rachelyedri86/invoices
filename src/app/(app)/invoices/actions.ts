@@ -36,10 +36,12 @@ export async function processUpload(path: string): Promise<{ id?: string; error?
     return { error: "אפשר להעלות רק תמונה (JPG, PNG, WebP) או PDF, עד 10MB." };
   }
 
+  const { data: categories } = await supabase.from("categories").select("id, name").eq("active", true);
+
   let extraction: Extraction | null = null;
   let warning: string | undefined;
   try {
-    extraction = await extractInvoice(bytes, mime);
+    extraction = await extractInvoice(bytes, mime, (categories ?? []).map((c) => c.name));
     if (!extraction.is_invoice) warning = "הקובץ לא נראה כמו חשבונית או קבלה. בדקו שהעליתם את הקובץ הנכון.";
   } catch (error) {
     warning = error instanceof Error ? error.message : "הזיהוי נכשל. אפשר למלא את השדות ידנית.";
@@ -53,6 +55,25 @@ export async function processUpload(path: string): Promise<{ id?: string; error?
     else warning ??= `המטבע ${code} לא מוגדר במערכת. בדקו את המטבע לפני ההגשה.`;
   }
 
+  // When two of the three amounts are printed, the third follows from them.
+  let before = round2(extraction?.amount_before_vat);
+  let vat = round2(extraction?.vat_amount);
+  let total = round2(extraction?.total_amount);
+  const derived: string[] = [];
+  if (total != null && vat != null && before == null) {
+    before = round2(total - vat);
+    derived.push("amount_before_vat");
+  } else if (total != null && before != null && vat == null) {
+    vat = round2(total - before);
+    derived.push("vat_amount");
+  } else if (before != null && vat != null && total == null) {
+    total = round2(before + vat);
+    derived.push("total_amount");
+  }
+
+  const suggested = extraction?.category?.trim();
+  const categoryId = (categories ?? []).find((c) => c.name === suggested)?.id ?? null;
+
   const { data: invoice, error } = await supabase
     .from("invoices")
     .insert({
@@ -60,7 +81,9 @@ export async function processUpload(path: string): Promise<{ id?: string; error?
       file_mime: mime,
       department_id: user.departmentId,
       currency,
-      extraction_raw: extraction,
+      category_id: categoryId,
+      // Derived and suggested fields are recorded so the review screen can mark them for checking.
+      extraction_raw: extraction && { ...extraction, derived, category_suggested: !!categoryId },
       ...(extraction && {
         supplier_name: extraction.supplier_name?.trim() || null,
         supplier_tax_id: extraction.supplier_tax_id?.replace(/\D/g, "") || null,
@@ -68,9 +91,9 @@ export async function processUpload(path: string): Promise<{ id?: string; error?
         invoice_number: extraction.invoice_number?.trim() || null,
         invoice_date: validDate(extraction.invoice_date),
         allocation_number: extraction.allocation_number?.replace(/\D/g, "") || null,
-        amount_before_vat: round2(extraction.amount_before_vat),
-        vat_amount: round2(extraction.vat_amount),
-        total_amount: round2(extraction.total_amount),
+        amount_before_vat: before,
+        vat_amount: vat,
+        total_amount: total,
       }),
     })
     .select("id")
