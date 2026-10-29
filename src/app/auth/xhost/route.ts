@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { absoluteUrl } from "@/lib/redirect-url";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { verifyXhostToken, xhostEnabled, xhostLoginUrl, XHOST_COOKIE } from "@/lib/xhost";
@@ -6,7 +7,7 @@ import { verifyXhostToken, xhostEnabled, xhostLoginUrl, XHOST_COOKIE } from "@/l
 // Google sign-in through xhostd → Supabase session.
 // Only people an admin added (an active profile with the same email) get in.
 export async function GET(request: NextRequest) {
-  const back = (path: string) => NextResponse.redirect(new URL(path, request.url), { status: 303 });
+  const back = (path: string) => NextResponse.redirect(absoluteUrl(request, path), { status: 303 });
   if (!xhostEnabled()) return back("/login");
 
   const identity = await verifyXhostToken(request.cookies.get(XHOST_COOKIE)?.value);

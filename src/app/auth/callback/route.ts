@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { absoluteUrl } from "@/lib/redirect-url";
 import { createClient } from "@/lib/supabase/server";
 
 // The "Sign in" link in the login email lands here with a one-time ?code=... that becomes a session.
@@ -8,7 +9,7 @@ export async function GET(request: NextRequest) {
   if (code) {
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) return NextResponse.redirect(new URL("/", request.url));
+    if (!error) return NextResponse.redirect(absoluteUrl(request, "/"));
   }
-  return NextResponse.redirect(new URL("/login?error=link", request.url));
+  return NextResponse.redirect(absoluteUrl(request, "/login?error=link"));
 }
