@@ -1,6 +1,14 @@
 import { LoginForm } from "./login-form";
 import { devSignIn } from "./actions";
 import { ROLE_LABELS } from "@/lib/labels";
+import { xhostEnabled } from "@/lib/xhost";
+
+const ERRORS: Record<string, string> = {
+  inactive: "המשתמש שלך אינו פעיל. פנה לאדמין.",
+  link: "הקישור לא תקין או שפג תוקפו. צריך לפתוח אותו באותו דפדפן שבו הוקלד המייל. בקשו קישור חדש.",
+  not_registered: "חשבון ה-Google הזה לא רשום במערכת. בקשו מהאדמין להוסיף את כתובת המייל שלכם.",
+  sso: "הכניסה עם Google נכשלה. נסו שוב.",
+};
 
 const DEMO_USERS = [
   { tag: "employee", name: "עדי עובדת", role: ROLE_LABELS.employee },
@@ -14,6 +22,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   const { error } = await searchParams;
   const [local, domain] = (process.env.SEED_EMAIL ?? "").split("@");
   const showDemo = process.env.NODE_ENV === "development" && !!local && !!domain;
+  const sso = xhostEnabled();
 
   return (
     <main className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center px-4 py-10">
@@ -25,15 +34,25 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
         <p className="mt-1 text-slate-500">סריקת חשבוניות ואישור מנהל</p>
       </div>
 
-      {error === "inactive" && (
-        <p className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950 dark:text-red-200">
-          המשתמש שלך אינו פעיל. פנה לאדמין.
-        </p>
+      {typeof error === "string" && ERRORS[error] && (
+        <p className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950 dark:text-red-200">{ERRORS[error]}</p>
       )}
-      {error === "link" && (
-        <p className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950 dark:text-red-200">
-          הקישור לא תקין או שפג תוקפו. צריך לפתוח אותו באותו דפדפן שבו הוקלד המייל. בקשו קישור חדש.
-        </p>
+
+      {sso && (
+        <>
+          <a
+            href="/auth/xhost"
+            className="flex w-full items-center justify-center gap-3 rounded-lg border border-slate-300 bg-white px-4 py-3 font-medium text-slate-800 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+          >
+            <span className="text-lg font-bold text-blue-600">G</span>
+            כניסה עם חשבון Google
+          </a>
+          <div className="my-6 flex items-center gap-3 text-sm text-slate-400">
+            <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
+            או עם קוד במייל
+            <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
+          </div>
+        </>
       )}
 
       <LoginForm />

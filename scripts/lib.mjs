@@ -10,8 +10,8 @@ export function env(name) {
   return value;
 }
 
-export const SUPABASE_URL = env("NEXT_PUBLIC_SUPABASE_URL");
-export const PUBLISHABLE_KEY = env("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY");
+export const SUPABASE_URL = env("SUPABASE_URL");
+export const PUBLISHABLE_KEY = env("SUPABASE_PUBLISHABLE_KEY");
 const SECRET_KEY = env("SUPABASE_SECRET_KEY");
 
 const noSession = { auth: { persistSession: false, autoRefreshToken: false } };

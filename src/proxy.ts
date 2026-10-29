@@ -7,8 +7,8 @@ export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    process.env.SUPABASE_URL!,
+    process.env.SUPABASE_PUBLISHABLE_KEY!,
     {
       cookies: {
         getAll() {
@@ -40,7 +40,8 @@ export async function proxy(request: NextRequest) {
 
   if (!signedIn && !isLogin) {
     const url = request.nextUrl.clone();
-    url.pathname = "/login";
+    // Already signed in with Google through xhostd: open the app session without a stop at /login.
+    url.pathname = process.env.XHOSTD_HOSTNAME && request.cookies.has("__Host-xhost_id") ? "/auth/xhost" : "/login";
     url.search = "";
     return NextResponse.redirect(url);
   }
