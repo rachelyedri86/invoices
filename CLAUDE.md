@@ -82,6 +82,14 @@ APP_URL=http://localhost:3000
 ```
 - המשתמשת ממלאת סודות ישירות בקובץ, לא בצ'אט. לבדוק ערכים רק לפי צורה ואורך, בלי להדפיס אותם.
 
+## פריסה ל-xhostd
+- אפליקציה `invoices` (template docker, ערוץ prod על branch main). Dockerfile בונה Next.js במצב standalone
+- פריסה: `GIT_SSH_COMMAND="ssh -i ~/.ssh/xhost_ed25519 -o IdentitiesOnly=yes" git push xhostd-ssh main:main` ואז deploy (app_name=invoices, channel=prod) דרך ה-MCP של xhostd
+- משתני סביבה ב-xhostd: SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, APP_URL, EMAIL_FROM, EMAIL_TEST_RECIPIENT (רגילים); SUPABASE_SECRET_KEY, ANTHROPIC_API_KEY, RESEND_API_KEY (סודות, מוזנים בקונסול). xhostd מזריק env רק בזמן ריצה, לכן אין NEXT_PUBLIC_*: הדפדפן מקבל את כתובת Supabase דרך `window.__ENV` (layout)
+- התחברות: SSO של xhostd (Google) - הקוקי `__Host-xhost_id` מאומת מול JWKS (`src/lib/xhost.ts`), ו-`/auth/xhost` פותח session של Supabase למשתמש עם פרופיל פעיל באותו מייל. יציאה מנתקת גם את xhostd. קוד במייל נשאר כגיבוי
+- מאחורי ה-proxy של xhostd `request.url` הוא 0.0.0.0 - הפניות דרך `absoluteUrl()`
+- תוכנית basic: 128MB זיכרון משותף לכל האפליקציות בחשבון (+ swap), 0.1 CPU
+
 ## פקודות
 - `npm run dev`: שרת פיתוח
 - `npm run db:push`: החלת מיגרציות מ-`supabase/migrations` על פרויקט הענן (דרך `SUPABASE_DB_URL`)
@@ -113,8 +121,8 @@ APP_URL=http://localhost:3000
 - [x] **ב. התחברות ותפקידים**: OTP במייל, middleware, ניווט לפי תפקיד, מסך אדמין (משתמשים ומנהלים, מחלקות, קטגוריות, מטבעות, סף אישור)
 - [x] **ג. העלאה וחילוץ**: צילום או העלאה, כיווץ, Claude API, zod, טופס עריכה, אזהרות וכפילויות
 - [x] **ד. אישור והיסטוריה**: מסך אישורים, אישור או דחייה עם סיבה, הגשה מחדש, ציר היסטוריה
-- [ ] **ה. ייצוא והתראות**: CSV/Excel, סימון שולם, מיילים למנהל ולעובד
-- [ ] **ו. פריסה**: Vercel, משתני סביבה, כתובות Auth ב-Supabase, PWA
+- [x] **ה. ייצוא והתראות**: CSV/Excel, סימון שולם, מיילים למנהל ולעובד
+- [x] **ו. פריסה**: xhostd (במקום Vercel), אפליקציה `invoices`, template docker, https://invoices-rachelyedri.xhostd.app
 
 ## נתוני דמה
 משתמש אחד מכל תפקיד, ועוד מנהלת בכירה לאישור הנוסף (כתובות `+alias` של `SEED_EMAIL`, כדי שקוד ה-OTP יגיע). היררכיה: עובדת → משה מנהל → דנה בכירה; חשבונות → דנה בכירה, שתי מחלקות, כמה קטגוריות וכמה חשבוניות בסטטוסים שונים.
