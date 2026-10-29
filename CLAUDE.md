@@ -93,7 +93,7 @@ APP_URL=http://localhost:3000
 - `src/lib/auth.ts`: `requireUser()` / `requireRole(...)` בראש כל דף ו-server action. משתמש מושבת מנותב ל-`/auth/signout`
 - `src/app/(app)/`: כל המסכים המוגנים; `admin/actions.ts` עם server actions לניהול. השבתת משתמש = `active=false` + ban ב-Auth
 - טפסים: `ActionForm` (useActionState) + server action שמחזירה `ActionResult`
-- התחברות: OTP במייל, `shouldCreateUser: false` (רק משתמשים שאדמין הוסיף). בפיתוח יש כפתורי כניסה מהירה למשתמשי דמו (`NODE_ENV=development` בלבד)
+- התחברות: עד שיוגדר SMTP (שלב ה') Supabase שולח רק את תבנית ברירת המחדל עם קישור Sign in, ולכן `/auth/callback` מחליף את ה-code ל-session (צריך לפתוח את הקישור באותו דפדפן). הפרוקסי מעביר `/?code=` לשם. אחרי SMTP: תבנית עם `{{ .Token }}` לקוד. השרת המקומי רץ על פורט 3000 (= Site URL). ה-OTP: `shouldCreateUser: false` (רק משתמשים שאדמין הוסיף). בפיתוח יש כפתורי כניסה מהירה למשתמשי דמו (`NODE_ENV=development` בלבד)
 - Cache Components כבויים (`next.config.ts`): כל המסכים תלויי משתמש
 - אחרי מיגרציה חדשה: `npm run db:types` מעדכן את `src/lib/database.types.ts`
 - `supabase/migrations/`: סכמה, פונקציות תהליך (`submit_invoice`, `approve_invoice`, `reject_invoice`, `mark_invoices_paid`, `invoice_duplicate_exists`), RLS ו-Storage. שינוי סכמה = קובץ מיגרציה חדש, לא עריכה של קובץ שכבר הוחל.
