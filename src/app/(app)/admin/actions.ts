@@ -65,7 +65,7 @@ export async function createUser(_: ActionResult, form: FormData): Promise<Actio
   const supabase = await createClient();
   const { error: updateError } = await supabase
     .from("profiles")
-    .update(fields.data)
+    .update({ ...fields.data, active: true })
     .eq("id", data.user.id);
   if (updateError) return dbError(updateError);
 
