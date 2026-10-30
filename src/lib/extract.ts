@@ -103,6 +103,8 @@ Expense categories: ${categories.length ? categories.join(" | ") : "(none)"}`,
           }] }],
     });
   } catch (error) {
+    const e = error as { name?: string; status?: number; message?: string };
+    console.error("extractInvoice failed:", e.name, e.status ?? "", String(e.message ?? "").slice(0, 200));
     if (error instanceof Anthropic.RateLimitError) throw new Error("שירות הזיהוי עמוס כרגע. נסו שוב בעוד דקה.");
     if (error instanceof Anthropic.AuthenticationError) throw new Error("מפתח Claude API לא תקין. פנו לאדמין.");
     if (error instanceof Anthropic.BadRequestError) throw new Error("לא ניתן היה לקרוא את הקובץ.");
