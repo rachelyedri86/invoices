@@ -1,36 +1,67 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# חשבוניות – סריקת חשבוניות ואישור מנהל
 
-## Getting Started
+אפליקציית ווב ארגונית בעברית: עובד מצלם או מעלה חשבונית, המערכת מחלצת ממנה את הנתונים בעזרת Claude, העובד בודק ושולח לאישור, המנהל מאשר או דוחה, והנהלת החשבונות מסמנת "שולם" ומייצאת ל-Excel או CSV.
 
-First, run the development server:
+## איך זה עובד
+
+| תפקיד | מה עושה |
+|---|---|
+| עובד | מגיש חשבוניות ורואה רק את שלו |
+| מנהל | מאשר או דוחה את חשבוניות העובדים שלו; מעל סף מוגדר נדרש אישור נוסף של המנהל שמעליו |
+| הנהלת חשבונות | רואה חשבוניות מאושרות, מסמנת תשלום ומייצאת |
+| אדמין | מנהל משתמשים, מנהלים, מחלקות, קטגוריות, מטבעות וסף האישור |
+
+סטטוסים: טיוטה ← ממתין לאישור ← [ממתין לאישור נוסף] ← אושר / נדחה ← שולם. כל מעבר נרשם בהיסטוריה.
+
+## טכנולוגיות
+
+- Next.js 16 (App Router), TypeScript, Tailwind CSS
+- Supabase: Postgres עם Row Level Security, Auth, Storage
+- Anthropic Claude API לחילוץ נתונים מהתמונה או ה-PDF (צד שרת בלבד)
+- Resend למיילים, ExcelJS לייצוא, sharp לכיווץ תמונות
+- פריסה: xhostd (Docker, Next.js standalone)
+
+## הרצה מקומית
+
+דרישות: Node 22, פרויקט Supabase בענן (אין Supabase מקומי), מפתח Anthropic.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm ci
+cp .env.example .env.local      # ולמלא את הערכים
+npm run db:push                 # החלת המיגרציות על פרויקט Supabase
+npm run db:types                # עדכון הטיפוסים מהסכמה
+SEED_CONFIRM=yes npm run db:seed   # נתוני דמה (רק לסביבת פיתוח!)
+npm run dev                     # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## פקודות
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| פקודה | מה עושה |
+|---|---|
+| `npm run dev` | שרת פיתוח |
+| `npm run build` | בנייה לייצור |
+| `npm run db:push` | החלת המיגרציות מ-`supabase/migrations` |
+| `npm run db:types` | עדכון `src/lib/database.types.ts` מהסכמה |
+| `npm run db:seed` | נתוני דמה; רץ רק עם `SEED_CONFIRM=yes` |
+| `npm run db:test` | בדיקות הרשאות (RLS) ותהליך האישור מול המסד האמיתי |
+| `npm run storage:cleanup` | רשימת קבצים יתומים ב-Storage; עם `-- --delete` מוחק |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## אבטחה
 
-## Learn More
+- כל ההרשאות נאכפות במסד הנתונים (RLS ופונקציות `security definer`), לא רק בממשק.
+- משתמשים נכנסים רק אם אדמין הוסיף אותם. פרופיל חדש נוצר לא-פעיל.
+- הקוד לא מכיל סודות. כל המפתחות ב-`.env.local` (לא עולה ל-git) ובמשתני הסביבה של השרת.
+- הגדרות שחייבות להישמר בדשבורד של Supabase ופירוט ההקשחה: ראו `CLAUDE.md`, סעיף "אבטחה".
 
-To learn more about Next.js, take a look at the following resources:
+הריפו ציבורי במכוון. אין לשמור בו נתונים אמיתיים, מפתחות או מזהי פרויקט.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## מבנה
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- `src/app/(app)/` – המסכים המוגנים: חשבוניות, אישורים, הנהלת חשבונות, ניהול
+- `src/app/auth/`, `src/app/login/` – כניסה (קוד במייל, Google דרך xhostd), יציאה
+- `src/lib/` – אימות, חילוץ עם Claude, מיילים, לקוחות Supabase
+- `supabase/migrations/` – סכמה, RLS, פונקציות התהליך, Storage
+- `scripts/` – מיגרציות, סיד, בדיקות RLS, ניקוי Storage
+- `samples/` – חשבוניות דמה לבדיקה ידנית
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+תיעוד מלא למפתחים (החלטות, פריסה, משתני סביבה): `CLAUDE.md`.
