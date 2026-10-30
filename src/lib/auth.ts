@@ -42,8 +42,9 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
 /** Use at the top of every protected page or server action. */
 export async function requireUser(): Promise<CurrentUser> {
   const user = await getCurrentUser();
-  // Signed in but no active profile (e.g. deactivated): sign out first, otherwise /login bounces back here.
-  if (!user) redirect("/auth/signout?reason=inactive");
+  // Signed in but no active profile (e.g. deactivated): show /auth/inactive, which signs out with a
+  // POST (sign-out no longer accepts GET). Going straight to /login would bounce back here.
+  if (!user) redirect("/auth/inactive");
   return user;
 }
 
