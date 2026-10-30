@@ -6,9 +6,8 @@ import { accountingQuery, parseFilters } from "@/lib/accounting";
 import { DOC_TYPE_LABELS, STATUS_LABELS } from "@/lib/labels";
 
 // Download of the invoices shown on the accounting screen, as CSV or Excel.
-// File links are signed for 7 days so the accountant can open the original documents.
-
-const LINK_SECONDS = 7 * 24 * 60 * 60;
+// Each row links to the invoice page in the app: opening it requires signing in, and the page
+// shows the file. No storage signed URLs are embedded, so a leaked export exposes no documents.
 
 const COLUMNS = [
   { key: "invoice_number", header: "מספר חשבונית", width: 16 },
@@ -31,7 +30,7 @@ const COLUMNS = [
   { key: "status", header: "סטטוס", width: 10 },
   { key: "paid_at", header: "תאריך תשלום", width: 12 },
   { key: "notes", header: "הערות", width: 30 },
-  { key: "file_url", header: "קישור לקובץ (7 ימים)", width: 20 },
+  { key: "file_url", header: "קישור לחשבונית", width: 20 },
 ] as const;
 
 type Key = (typeof COLUMNS)[number]["key"];
@@ -60,9 +59,7 @@ export async function GET(request: NextRequest) {
   const { data: invoices, error } = await accountingQuery(supabase, filters);
   if (error) return NextResponse.json({ error: "הייצוא נכשל" }, { status: 500 });
 
-  const paths = invoices.map((i) => i.file_path).filter((p): p is string => !!p);
-  const signed = paths.length ? (await supabase.storage.from("invoices").createSignedUrls(paths, LINK_SECONDS)).data ?? [] : [];
-  const urlByPath = new Map(signed.map((s) => [s.path, s.signedUrl]));
+  const appUrl = (process.env.APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
 
   const rows: Record<Key, string | number | null>[] = invoices.map((i) => ({
     invoice_number: i.invoice_number,
@@ -85,7 +82,7 @@ export async function GET(request: NextRequest) {
     status: STATUS_LABELS[i.status],
     paid_at: day(i.paid_at),
     notes: i.notes,
-    file_url: (i.file_path && urlByPath.get(i.file_path)) || null,
+    file_url: `${appUrl}/invoices/${i.id}`,
   }));
 
   const stamp = new Date().toISOString().slice(0, 10);
