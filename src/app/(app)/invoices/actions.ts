@@ -5,7 +5,7 @@ import { after } from "next/server";
 import { z } from "zod";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { extractInvoice, MAX_FILE_BYTES, sniffMime, type Extraction } from "@/lib/extract";
+import { extractInvoice, ExtractionError, MAX_FILE_BYTES, sniffMime, type Extraction } from "@/lib/extract";
 import { dbError } from "@/lib/action-result";
 import { notifyInvoice } from "@/lib/notify";
 
@@ -17,15 +17,58 @@ function validDate(value: string | null): string | null {
   return Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== value ? null : value;
 }
 
+// Each upload is one paid Claude call; this caps what a single account can spend per hour.
+const UPLOADS_PER_HOUR = 30;
+
+/**
+ * Codes, not text: the client puts the warning in the URL and the invoice page translates known
+ * codes only, so nobody can craft a link that shows an arbitrary message.
+ */
+export type UploadWarning =
+  | "not_invoice"
+  | "extract_busy"
+  | "extract_auth"
+  | "extract_unreadable"
+  | "extract_unavailable"
+  | "image_too_large"
+  | "currency_unknown";
+
+const EXTRACTION_WARNINGS: Record<ExtractionError["code"], UploadWarning> = {
+  busy: "extract_busy",
+  auth: "extract_auth",
+  unreadable: "extract_unreadable",
+  unavailable: "extract_unavailable",
+  image_too_large: "image_too_large",
+};
+
 /**
  * Step 2 of a new invoice: the browser already uploaded the file to the user's storage folder.
  * Verify the file, read it with Claude, and create a draft. Returns the new invoice id.
+ * `currency` (3 uppercase letters) accompanies the `currency_unknown` warning when it is valid.
  */
-export async function processUpload(path: string): Promise<{ id?: string; error?: string; warning?: string }> {
+export async function processUpload(
+  path: string,
+): Promise<{ id?: string; error?: string; warning?: UploadWarning; currency?: string }> {
   const user = await requireUser();
   if (!new RegExp(`^${user.id}/[0-9a-f-]{36}\\.(jpg|png|webp|pdf)$`).test(path)) return { error: "קובץ לא תקין" };
 
   const supabase = await createClient();
+
+  const { count, error: countError } = await supabase
+    .from("invoices")
+    .select("id", { count: "exact", head: true })
+    .eq("employee_id", user.id)
+    .gte("created_at", new Date(Date.now() - 3600_000).toISOString());
+  // Fails closed: if the count cannot be read, no paid call is made.
+  if (countError || count == null) {
+    await supabase.storage.from("invoices").remove([path]);
+    return { error: "משהו השתבש. נסו שוב." };
+  }
+  if (count >= UPLOADS_PER_HOUR) {
+    await supabase.storage.from("invoices").remove([path]);
+    return { error: `הגעתם למכסת ההעלאות לשעה (${UPLOADS_PER_HOUR}). נסו שוב מאוחר יותר.` };
+  }
+
   const { data: blob, error: downloadError } = await supabase.storage.from("invoices").download(path);
   if (downloadError || !blob) return { error: "הקובץ לא נמצא. נסו להעלות שוב." };
 
@@ -39,20 +82,25 @@ export async function processUpload(path: string): Promise<{ id?: string; error?
   const { data: categories } = await supabase.from("categories").select("id, name").eq("active", true);
 
   let extraction: Extraction | null = null;
-  let warning: string | undefined;
+  let warning: UploadWarning | undefined;
   try {
     extraction = await extractInvoice(bytes, mime, (categories ?? []).map((c) => c.name));
-    if (!extraction.is_invoice) warning = "הקובץ לא נראה כמו חשבונית או קבלה. בדקו שהעליתם את הקובץ הנכון.";
+    if (!extraction.is_invoice) warning = "not_invoice";
   } catch (error) {
-    warning = error instanceof Error ? error.message : "הזיהוי נכשל. אפשר למלא את השדות ידנית.";
+    warning = error instanceof ExtractionError ? EXTRACTION_WARNINGS[error.code] : "extract_unavailable";
   }
 
   let currency = "ILS";
+  let unknownCurrency: string | undefined;
   const code = extraction?.currency?.trim().toUpperCase();
   if (code && code !== "ILS") {
     const { data } = await supabase.from("currencies").select("code").eq("code", code).maybeSingle();
     if (data) currency = code;
-    else warning ??= `המטבע ${code} לא מוגדר במערכת. בדקו את המטבע לפני ההגשה.`;
+    else if (!warning) {
+      // An extraction warning takes precedence over the currency one.
+      warning = "currency_unknown";
+      if (/^[A-Z]{3}$/.test(code)) unknownCurrency = code;
+    }
   }
 
   // When two of the three amounts are printed, the third follows from them.
@@ -114,7 +162,7 @@ export async function processUpload(path: string): Promise<{ id?: string; error?
   }
 
   revalidatePath("/invoices");
-  return { id: invoice.id, warning };
+  return { id: invoice.id, warning, currency: unknownCurrency };
 }
 
 const money = z.number().finite().min(-1e9).max(1e9).nullable();

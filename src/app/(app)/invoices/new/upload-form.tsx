@@ -30,7 +30,11 @@ export function UploadForm({ userId }: { userId: string }) {
       setError(result.error ?? "משהו השתבש. נסו שוב.");
       return;
     }
-    const query = result.warning ? `?warning=${encodeURIComponent(result.warning)}` : "";
+    // The page translates the code itself; only the code (and a currency code) travel in the URL.
+    const params = new URLSearchParams();
+    if (result.warning) params.set("warning", result.warning);
+    if (result.currency) params.set("currency", result.currency);
+    const query = params.toString() ? `?${params.toString()}` : "";
     router.push(`/invoices/${result.id}${query}`);
   }
 
