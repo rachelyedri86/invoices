@@ -112,7 +112,7 @@ APP_URL=http://localhost:3000
 - `samples/`: חשבוניות לדוגמה (PNG/PDF) לבדיקה ידנית
 - אחרי מיגרציה חדשה: `npm run db:types` מעדכן את `src/lib/database.types.ts`
 - `supabase/migrations/`: סכמה, פונקציות תהליך (`submit_invoice`, `approve_invoice`, `reject_invoice`, `mark_invoices_paid`, `invoice_duplicate_exists`), RLS ו-Storage. שינוי סכמה = קובץ מיגרציה חדש, לא עריכה של קובץ שכבר הוחל.
-- אבטחה: רק משתמש שאדמין הוסיף ופעיל (`active`) נוגע בנתונים ובקבצים (מדיניות restrictive "active users only" על כל הטבלאות ו-storage). פרופיל חדש נוצר לא פעיל, ו-`createUser` מפעיל אותו. ב-Supabase צריך לכבות הרשמה עצמית (Allow new users to sign up). ריפו GitHub חייב להיות Private.
+- אבטחה: רק משתמש שאדמין הוסיף ופעיל (`active`) נוגע בנתונים ובקבצים (מדיניות restrictive "active users only" על כל הטבלאות ו-storage). פרופיל חדש נוצר לא פעיל, ו-`createUser` מפעיל אותו. ב-Supabase צריך לכבות הרשמה עצמית (Allow new users to sign up). ריפו GitHub ציבורי (החלטת המשתמשת), לכן אסור שיהיו בקוד סודות או נתונים אמיתיים. שותף: zomer-g (Collaborator).
 - סטטוס משתנה רק דרך פונקציות התהליך. למשתמשים יש הרשאת עדכון רק לעמודות שניתנות לעריכה.
 - `src/lib/supabase/`: `server.ts` (משתמש מחובר), `client.ts` (דפדפן), `admin.ts` (מפתח סודי, שרת בלבד)
 - Next.js 16 עם `cacheComponents`: קריאות לנתונים לא מטומנים עטופות ב-`<Suspense>` (ראו `node_modules/next/dist/docs`)
