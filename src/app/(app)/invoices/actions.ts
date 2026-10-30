@@ -3,8 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { z } from "zod";
-import { requireUser } from "@/lib/auth";
+import { requireRole, requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { extractInvoice, ExtractionError, MAX_FILE_BYTES, sniffMime, type Extraction } from "@/lib/extract";
 import { dbError } from "@/lib/action-result";
 import { notifyInvoice } from "@/lib/notify";
@@ -299,6 +300,26 @@ export async function deleteDraft(id: string): Promise<{ error?: string }> {
   if (error || !deleted?.length) return { error: "אפשר למחוק רק טיוטה שלך." };
   if (invoice?.file_path) await supabase.storage.from("invoices").remove([invoice.file_path]);
   revalidatePath("/invoices");
+  revalidatePath("/");
+  return {};
+}
+
+/**
+ * Admin only: deletes an invoice in any status, with its items, history and file.
+ * RLS lets users delete only their own drafts, so this runs with the admin client after the role check.
+ */
+export async function deleteInvoiceAsAdmin(id: string): Promise<{ error?: string }> {
+  await requireRole("admin");
+  if (!z.string().uuid().safeParse(id).success) return { error: "חשבונית לא תקינה." };
+  const admin = createAdminClient();
+  const { data: invoice } = await admin.from("invoices").select("file_path").eq("id", id).maybeSingle();
+  if (!invoice) return { error: "החשבונית לא נמצאה." };
+  const { error } = await admin.from("invoices").delete().eq("id", id);
+  if (error) return { error: "המחיקה נכשלה. נסו שוב." };
+  if (invoice.file_path) await admin.storage.from("invoices").remove([invoice.file_path]);
+  revalidatePath("/invoices");
+  revalidatePath("/approvals");
+  revalidatePath("/accounting");
   revalidatePath("/");
   return {};
 }

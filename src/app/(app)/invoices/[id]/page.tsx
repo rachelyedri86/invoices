@@ -11,6 +11,7 @@ import { InvoiceEditor } from "./invoice-editor";
 import { DecisionPanel } from "./decision-panel";
 import { History, type HistoryEntry } from "./history";
 import { ReplaceFile } from "./replace-file";
+import { AdminDelete } from "./admin-delete";
 import type { UploadWarning } from "../actions";
 
 // The upload redirects here with a warning code; only these known texts are ever shown.
@@ -57,11 +58,15 @@ export default async function InvoicePage({ params, searchParams }: PageProps<"/
   const history = <History entries={(historyRows ?? []) as HistoryEntry[]} />;
   const editable = invoice.employee_id === user.id && (invoice.status === "draft" || invoice.status === "rejected");
 
+  // Admins can delete any invoice; drafts already have their own delete button in the editor.
+  const adminDelete = user.role === "admin" && !(editable && invoice.status === "draft") ? <AdminDelete invoiceId={invoice.id} /> : null;
+
   const filePreview = <FilePreview url={signed ?? null} mime={invoice.file_mime} />;
   const preview = editable ? (
     <div className="space-y-2">
       {filePreview}
       <ReplaceFile invoiceId={invoice.id} userId={user.id} hasFile={!!invoice.file_path} />
+      {adminDelete}
     </div>
   ) : (
     filePreview
@@ -163,6 +168,7 @@ export default async function InvoicePage({ params, searchParams }: PageProps<"/
             </div>
           )}
           {history}
+          {adminDelete}
         </div>
       </div>
     </div>
