@@ -78,14 +78,26 @@ SUPABASE_SECRET_KEY=                   # sb_secret_...  שרת בלבד
 SUPABASE_DB_URL=                       # Session pooler, למיגרציות בלבד
 ANTHROPIC_API_KEY=                     # שרת בלבד (נדרש משלב ג')
 SEED_EMAIL=                            # בסיס לכתובות משתמשי הדמו (+admin, +employee…)
-APP_URL=http://localhost:3000
+SEED_CONFIRM=                          # חייב להיות yes כדי ש-db:seed ירוץ (הגנה מפני seed בטעות על הייצור)
+EMAIL_TEST_RECIPIENT_FORCE=            # בייצור EMAIL_TEST_RECIPIENT מתעלם, אלא אם כאן 1
+APP_URL=http://localhost:3000          # חובה בייצור: כל ההפניות וקישורי הכניסה נבנים ממנו, לא מכותרות הבקשה
 ```
 - המשתמשת ממלאת סודות ישירות בקובץ, לא בצ'אט. לבדוק ערכים רק לפי צורה ואורך, בלי להדפיס אותם.
+
+## אבטחה (סקירה 30.10.2026 ותיקוניה)
+- **הגדרות ב-Supabase שחייבות להישמר** (אינן בקוד): Authentication → "Allow new users to sign up" כבוי; Redirect URLs רק כתובות מדויקות (`https://invoices-rachelyedri.xhostd.app/auth/confirm`, `http://localhost:3000/auth/confirm`) בלי wildcard; תוקף OTP קצר (10 דקות); תוקף JWT קצר (15 דקות). מומלץ: תבנית Magic Link עם `{{ .Token }}` בלבד, כדי שלא יישלח קישור עם session.
+- **הגנת עומק במסד** (`20261030000001_security_hardening.sql`): פרופיל חדש נוצר `active=false` (רק אדמין או הסיד מפעילים); `invoices.file_path` חייב להיות בתיקיית העובד (constraint + מדיניות Storage); משתמש מושבת לא קורא חשבוניות ולא מפעיל פונקציות תהליך גם עם JWT תקף; טבלת `admin_audit` (trigger על `profiles`, קריאה לאדמין בלבד).
+- **כניסה**: `emailRedirectTo` ו-`absoluteUrl()` נבנים מ-`APP_URL`; התשובה לטופס הכניסה זהה למייל רשום ולא רשום; `/auth/signout` רק POST; משתמש מושבת מנותב ל-`/auth/inactive`.
+- **העלאות**: עד 30 העלאות לשעה למשתמש (`UPLOADS_PER_HOUR`), תמונות עד 40 מגה-פיקסל (`MAX_INPUT_PIXELS`), `max_tokens: 4000`, והמסמך מוגדר בפרומפט כקלט לא אמין. אזהרות עוברות ב-URL כקודים (`UploadWarning`), לא כטקסט; גם `?done=` באישורים הוא קוד.
+- **כותרות** (`next.config.ts`): `frame-ancestors 'none'`, `X-Frame-Options`, `Referrer-Policy`, `nosniff`, בלי `X-Powered-By`. HSTS מגיע מה-proxy של xhostd.
+- **ייצוא**: בלי signed URLs; עמודת הקישור מפנה לדף החשבונית באפליקציה (דורש כניסה).
+- **קבצים יתומים**: `npm run storage:cleanup` (הרצת בדיקה) / `-- --delete` מוחק קבצים בני יותר מ-24 שעות שאינם מקושרים לחשבונית.
+- החלטה מתועדת: `invoice_duplicate_exists` נשאר פתוח לכל משתמש מחובר (אורקל כפילויות); האינדקס הייחודי חושף את אותו מידע בהגשה ממילא.
 
 ## פריסה ל-xhostd
 - אפליקציה `invoices` (template docker, ערוץ prod על branch main). Dockerfile בונה Next.js במצב standalone
 - פריסה: `GIT_SSH_COMMAND="ssh -i ~/.ssh/xhost_ed25519 -o IdentitiesOnly=yes" git push xhostd-ssh main:main` ואז deploy (app_name=invoices, channel=prod) דרך ה-MCP של xhostd
-- משתני סביבה ב-xhostd: SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, APP_URL, EMAIL_FROM, EMAIL_TEST_RECIPIENT (רגילים); SUPABASE_SECRET_KEY, ANTHROPIC_API_KEY, RESEND_API_KEY (סודות, מוזנים בקונסול). xhostd מזריק env רק בזמן ריצה, לכן אין NEXT_PUBLIC_*: הדפדפן מקבל את כתובת Supabase דרך `window.__ENV` (layout)
+- משתני סביבה ב-xhostd: SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, APP_URL (חובה, הכתובת החיה), EMAIL_FROM (רגילים); SUPABASE_SECRET_KEY, ANTHROPIC_API_KEY, RESEND_API_KEY (סודות, מוזנים בקונסול). EMAIL_TEST_RECIPIENT לא אמור להיות מוגדר בייצור (ואם כן, הוא מתעלם בלי EMAIL_TEST_RECIPIENT_FORCE=1). xhostd מזריק env רק בזמן ריצה, לכן אין NEXT_PUBLIC_*: הדפדפן מקבל את כתובת Supabase דרך `window.__ENV` (layout)
 - התחברות: SSO של xhostd (Google) - הקוקי `__Host-xhost_id` מאומת מול JWKS (`src/lib/xhost.ts`), ו-`/auth/xhost` פותח session של Supabase למשתמש עם פרופיל פעיל באותו מייל. יציאה מנתקת גם את xhostd. קוד במייל נשאר כגיבוי
 - מאחורי ה-proxy של xhostd `request.url` הוא 0.0.0.0 - הפניות דרך `absoluteUrl()`
 - תוכנית basic: 128MB זיכרון משותף לכל האפליקציות בחשבון (+ swap), 0.1 CPU
@@ -93,17 +105,18 @@ APP_URL=http://localhost:3000
 ## פקודות
 - `npm run dev`: שרת פיתוח
 - `npm run db:push`: החלת מיגרציות מ-`supabase/migrations` על פרויקט הענן (דרך `SUPABASE_DB_URL`)
-- `npm run db:seed`: נתוני דמה (אפשר להריץ שוב)
-- `npm run db:test`: בדיקות RLS ותהליך האישור מול מסד הנתונים האמיתי, בתור כל משתמש דמו
+- `npm run db:seed`: נתוני דמה (אפשר להריץ שוב). מדפיס את ה-host של היעד ורץ רק עם `SEED_CONFIRM=yes`
+- `npm run db:test`: בדיקות RLS ותהליך האישור מול מסד הנתונים האמיתי, בתור כל משתמש דמו (כולל בדיקות ההקשחה: הרשמה עצמית, file_path זר, מנהל מושבת, יומן אדמין)
+- `npm run storage:cleanup`: רשימת קבצים יתומים ב-Storage (הרצת בדיקה); עם `-- --delete` מוחק
 
 ## מבנה
 - `src/proxy.ts`: רענון session והפניה ל-`/login` (רק נוחות; ההרשאות האמיתיות ב-`requireUser/requireRole` וב-RLS)
-- `src/lib/auth.ts`: `requireUser()` / `requireRole(...)` בראש כל דף ו-server action. משתמש מושבת מנותב ל-`/auth/signout`
-- `src/app/(app)/`: כל המסכים המוגנים; `admin/actions.ts` עם server actions לניהול. השבתת משתמש = `active=false` + ban ב-Auth
+- `src/lib/auth.ts`: `requireUser()` / `requireRole(...)` בראש כל דף ו-server action. משתמש מושבת מנותב ל-`/auth/inactive` (דף עם כפתור יציאה ב-POST)
+- `src/app/(app)/`: כל המסכים המוגנים; `admin/actions.ts` עם server actions לניהול. השבתת משתמש = `active=false` + ban ב-Auth, ונחסמת כל עוד יש לו עובדים פעילים או חשבוניות שממתינות לאישורו. משתמש חדש נוצר במסד לא-פעיל ו-`createUser` מפעיל אותו
 - טפסים: `ActionForm` (useActionState) + server action שמחזירה `ActionResult`
-- התחברות: עד שיוגדר SMTP (שלב ה') Supabase שולח רק את תבנית ברירת המחדל עם קישור Sign in. הבקשה נשלחת מהשרת (`sendLoginLink`, flow implicit) כך שהקישור מגיע ל-`/auth/confirm#access_token=…` ועובד מכל דפדפן/טלפון; `/login` מטפל גם בנפילה ל-Site URL. כתובת האתר החי חייבת להופיע ב-Redirect URLs של Supabase. `/auth/callback` נשאר לקישורי `?code=` ישנים. אחרי SMTP: תבנית עם `{{ .Token }}` לקוד. השרת המקומי רץ על פורט 3000 (= Site URL). ה-OTP: `shouldCreateUser: false` (רק משתמשים שאדמין הוסיף). בפיתוח יש כפתורי כניסה מהירה למשתמשי דמו (`NODE_ENV=development` בלבד)
+- התחברות: עד שיוגדר SMTP (שלב ה') Supabase שולח רק את תבנית ברירת המחדל עם קישור Sign in. הבקשה נשלחת מהשרת (`sendLoginLink`, flow implicit) כך שהקישור מגיע ל-`${APP_URL}/auth/confirm#access_token=…` ועובד מכל דפדפן/טלפון; `/login` מטפל גם בנפילה ל-Site URL. כתובת האתר החי חייבת להופיע ב-Redirect URLs של Supabase (מדויקת, בלי wildcard). הטופס מחזיר אותה תשובה למייל רשום ולא רשום. `/auth/callback` נשאר לקישורי `?code=` ישנים. אחרי SMTP: תבנית עם `{{ .Token }}` לקוד. השרת המקומי רץ על פורט 3000 (= Site URL). ה-OTP: `shouldCreateUser: false` (רק משתמשים שאדמין הוסיף). בפיתוח יש כפתורי כניסה מהירה למשתמשי דמו (`NODE_ENV=development` בלבד)
 - Cache Components כבויים (`next.config.ts`): כל המסכים תלויי משתמש
-- העלאה: הדפדפן מכווץ תמונה (עד 2000px JPEG) ומעלה ישירות ל-Storage (`{uid}/{uuid}.ext`); `processUpload` בשרת מוריד, בודק סוג אמיתי לפי bytes וגודל, שולח ל-Claude ויוצר טיוטה
+- העלאה: הדפדפן מכווץ תמונה (עד 2000px JPEG) ומעלה ישירות ל-Storage (`{uid}/{uuid}.ext`); `processUpload` בשרת בודק מכסה (30 לשעה), מוריד, בודק סוג אמיתי לפי bytes וגודל, שולח ל-Claude ויוצר טיוטה. אזהרה חוזרת כקוד (`UploadWarning`) ומתורגמת בדף החשבונית
 - `src/lib/extract.ts`: `claude-sonnet-5-5`, `client.beta.messages.parse` + `betaZodOutputFormat` (JSON מאומת, שדה שלא נמצא = null), `fallbacks: "default"`. PDF נשלח כ-document, תמונה מוקטנת ל-1600px עם sharp
 - אישורים: `/approvals` (ממתינות לי / אישרתי / דחיתי / כל הצוות + סינון תאריך וסכום בשקלים). ההחלטה עצמה בדף החשבונית (`DecisionPanel`, מוצג רק ל-`current_approver_id`), דרך `approve_invoice` / `reject_invoice`
 - היסטוריה: `invoice_history` (נכתבת ב-trigger) מוצגת בדף החשבונית. עובד יכול לצרף/להחליף קובץ בטיוטה או בחשבונית שנדחתה (`replaceFile`)
@@ -111,7 +124,7 @@ APP_URL=http://localhost:3000
 - מחלקות וקטגוריות ממוינות לפי `position` ואז שם ("אחר" = 999, תמיד אחרון)
 - `samples/`: חשבוניות לדוגמה (PNG/PDF) לבדיקה ידנית
 - אחרי מיגרציה חדשה: `npm run db:types` מעדכן את `src/lib/database.types.ts`
-- `supabase/migrations/`: סכמה, פונקציות תהליך (`submit_invoice`, `approve_invoice`, `reject_invoice`, `mark_invoices_paid`, `invoice_duplicate_exists`), RLS ו-Storage. שינוי סכמה = קובץ מיגרציה חדש, לא עריכה של קובץ שכבר הוחל.
+- `supabase/migrations/`: סכמה, פונקציות תהליך (`submit_invoice`, `approve_invoice`, `reject_invoice`, `mark_invoices_paid`, `invoice_duplicate_exists`), RLS ו-Storage; `…000002` סדר תצוגה; `20261030000001` הקשחת אבטחה (ראו "אבטחה"). שינוי סכמה = קובץ מיגרציה חדש, לא עריכה של קובץ שכבר הוחל.
 - סטטוס משתנה רק דרך פונקציות התהליך. למשתמשים יש הרשאת עדכון רק לעמודות שניתנות לעריכה.
 - `src/lib/supabase/`: `server.ts` (משתמש מחובר), `client.ts` (דפדפן), `admin.ts` (מפתח סודי, שרת בלבד)
 - Next.js 16 עם `cacheComponents`: קריאות לנתונים לא מטומנים עטופות ב-`<Suspense>` (ראו `node_modules/next/dist/docs`)
@@ -123,6 +136,7 @@ APP_URL=http://localhost:3000
 - [x] **ד. אישור והיסטוריה**: מסך אישורים, אישור או דחייה עם סיבה, הגשה מחדש, ציר היסטוריה
 - [x] **ה. ייצוא והתראות**: CSV/Excel, סימון שולם, מיילים למנהל ולעובד
 - [x] **ו. פריסה**: xhostd (במקום Vercel), אפליקציה `invoices`, template docker, https://invoices-rachelyedri.xhostd.app
+- [x] **ז. הקשחת אבטחה** (קוד ומיגרציה). נותר ידנית: הגדרות הדשבורד שבסעיף "אבטחה", `db:push` ואז `db:types`, `db:test`, deploy
 
 ## נתוני דמה
 משתמש אחד מכל תפקיד, ועוד מנהלת בכירה לאישור הנוסף (כתובות `+alias` של `SEED_EMAIL`, כדי שקוד ה-OTP יגיע). היררכיה: עובדת → משה מנהל → דנה בכירה; חשבונות → דנה בכירה, שתי מחלקות, כמה קטגוריות וכמה חשבוניות בסטטוסים שונים.
