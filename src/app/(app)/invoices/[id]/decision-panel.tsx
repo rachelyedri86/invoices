@@ -22,7 +22,7 @@ export function DecisionPanel({ invoiceId, secondStage, firstApprover }: { invoi
     startTransition(async () => {
       const r = kind === "approve" ? await approveInvoice(invoiceId, text) : await rejectInvoice(invoiceId, text);
       // On success go back to the list, which shows the outcome (this panel disappears once decided).
-      if (r.ok) router.push(`/approvals?done=${encodeURIComponent(r.ok)}`);
+      if (r.ok) router.push(`/approvals?done=${r.ok}`);
       else setResult(r);
     });
   }

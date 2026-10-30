@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { StatusBadge } from "@/components/status-badge";
 import { buttonClass, cardClass, inputClass, labelClass, secondaryButtonClass } from "@/components/ui";
 import { formatDate, formatMoney } from "@/lib/format";
+import type { DecisionOk } from "./actions";
 
 const VIEWS = [
   { key: "mine", label: "ממתינות לי" },
@@ -11,6 +12,13 @@ const VIEWS = [
   { key: "rejected", label: "דחיתי" },
   { key: "team", label: "כל הצוות" },
 ] as const;
+
+// `?done=` carries a decision code, never free text: only these fixed messages can appear in the success box.
+const DONE_MESSAGES: Record<DecisionOk, string> = {
+  approved_second: "אושר. החשבונית הועברה לאישור נוסף.",
+  approved: "החשבונית אושרה.",
+  rejected: "החשבונית נדחתה והעובד יקבל הודעה.",
+};
 
 const one = (v: string | string[] | undefined) => (typeof v === "string" ? v : "");
 const isDate = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);
@@ -23,7 +31,8 @@ export default async function ApprovalsPage({ searchParams }: PageProps<"/approv
   const to = one(sp.to);
   const min = one(sp.min);
   const max = one(sp.max);
-  const done = one(sp.done);
+  const doneKey = one(sp.done);
+  const done = Object.hasOwn(DONE_MESSAGES, doneKey) ? DONE_MESSAGES[doneKey as DecisionOk] : null;
 
   const supabase = await createClient();
   let query = supabase

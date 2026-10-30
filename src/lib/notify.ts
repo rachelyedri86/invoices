@@ -6,8 +6,25 @@ import { formatDate, formatMoney } from "@/lib/format";
 // Email notifications through Resend. Without RESEND_API_KEY they are skipped (logged only),
 // so the app keeps working before email is set up. Never throws: a failed email must not
 // undo an approval.
+// EMAIL_TEST_RECIPIENT redirects every email to one address (Resend's test mode only delivers to the
+// account owner). It is honoured outside production, or in production only with
+// EMAIL_TEST_RECIPIENT_FORCE=1; otherwise it is ignored with a warning, so real recipients get their mail.
+// Logs never contain email addresses: they name the invoice id and the event.
 
 type InvoiceEvent = "submitted" | "approved_first" | "approved" | "rejected";
+
+let warnedIgnoredTestRecipient = false;
+
+function testRecipient(): string | undefined {
+  const testTo = process.env.EMAIL_TEST_RECIPIENT;
+  if (!testTo) return undefined;
+  if (process.env.NODE_ENV !== "production" || process.env.EMAIL_TEST_RECIPIENT_FORCE === "1") return testTo;
+  if (!warnedIgnoredTestRecipient) {
+    warnedIgnoredTestRecipient = true;
+    console.warn("[email] EMAIL_TEST_RECIPIENT is ignored in production (set EMAIL_TEST_RECIPIENT_FORCE=1 to use it)");
+  }
+  return undefined;
+}
 
 const escape = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
@@ -20,25 +37,27 @@ function layout(title: string, lines: string[], link: string, button: string) {
 </div>`;
 }
 
-async function sendEmail(to: string, subject: string, html: string) {
+/** `context` identifies the email in logs (invoice id and event), instead of the recipient's address. */
+async function sendEmail(to: string, subject: string, html: string, context: string) {
   const key = process.env.RESEND_API_KEY;
   if (!key) {
-    console.log(`[email skipped: no RESEND_API_KEY] to=${to} subject=${subject}`);
+    console.log(`[email skipped: no RESEND_API_KEY] ${context} subject=${subject}`);
     return;
   }
   // In testing, Resend only delivers to the account owner's address: send everything there.
-  const testTo = process.env.EMAIL_TEST_RECIPIENT;
+  const testTo = testRecipient();
   const { error } = await new Resend(key).emails.send({
     from: process.env.EMAIL_FROM || "חשבוניות <onboarding@resend.dev>",
     to: testTo || to,
     subject: testTo ? `[עבור ${to}] ${subject}` : subject,
     html,
   });
-  if (error) console.error(`[email failed] to=${to}: ${error.message}`);
+  if (error) console.error(`[email failed] ${context}: ${error.message}`);
 }
 
 /** Sends the email that matches what just happened to an invoice. */
 export async function notifyInvoice(invoiceId: string, event: InvoiceEvent): Promise<void> {
+  const context = `invoice=${invoiceId} event=${event}`;
   try {
     const db = createAdminClient();
     const { data: inv } = await db
@@ -70,6 +89,7 @@ export async function notifyInvoice(invoiceId: string, event: InvoiceEvent): Pro
           link,
           "לבדיקה ואישור",
         ),
+        context,
       );
     }
     if (event === "approved") {
@@ -77,6 +97,7 @@ export async function notifyInvoice(invoiceId: string, event: InvoiceEvent): Pro
         inv.employee.email,
         `החשבונית אושרה: ${inv.supplier_name ?? ""}`,
         layout("החשבונית שלך אושרה ✔", [...details, `אושרה על ידי ${escape(inv.decider?.full_name ?? "המנהל")}.`], link, "לצפייה בחשבונית"),
+        context,
       );
     }
     if (event === "rejected") {
@@ -89,9 +110,10 @@ export async function notifyInvoice(invoiceId: string, event: InvoiceEvent): Pro
           link,
           "לתיקון החשבונית",
         ),
+        context,
       );
     }
   } catch (error) {
-    console.error("[email failed]", error);
+    console.error(`[email failed] ${context}:`, error instanceof Error ? error.message : error);
   }
 }

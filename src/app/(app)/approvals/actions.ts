@@ -10,7 +10,10 @@ import { notifyInvoice } from "@/lib/notify";
 // The database functions check that the caller is the invoice's current approver,
 // so these actions only validate input and report the outcome.
 
-type DecisionResult = { ok?: string; error?: string };
+/** Outcome codes, not text: they travel in the URL (`/approvals?done=`) and the page maps them to messages. */
+export type DecisionOk = "approved_second" | "approved" | "rejected";
+
+type DecisionResult = { ok?: DecisionOk; error?: string };
 
 function refresh(id: string) {
   revalidatePath("/approvals");
@@ -29,7 +32,7 @@ export async function approveInvoice(id: string, note: string): Promise<Decision
   if (error) return { error: error.message };
   refresh(id);
   after(() => notifyInvoice(id, data === "pending_second" ? "approved_first" : "approved"));
-  return { ok: data === "pending_second" ? "אושר. החשבונית הועברה לאישור נוסף." : "החשבונית אושרה." };
+  return { ok: data === "pending_second" ? "approved_second" : "approved" };
 }
 
 export async function rejectInvoice(id: string, reason: string): Promise<DecisionResult> {
@@ -42,5 +45,5 @@ export async function rejectInvoice(id: string, reason: string): Promise<Decisio
   if (error) return { error: error.message };
   refresh(id);
   after(() => notifyInvoice(id, "rejected"));
-  return { ok: "החשבונית נדחתה והעובד יקבל הודעה." };
+  return { ok: "rejected" };
 }
