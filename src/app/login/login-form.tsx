@@ -21,13 +21,7 @@ export function LoginForm() {
     const { error } = await sendLoginLink(email);
     setBusy(false);
     if (error) {
-      setError(
-        error === "not_registered"
-          ? "כתובת המייל לא רשומה במערכת. פנה לאדמין."
-          : error === "rate_limit"
-            ? "נשלחו יותר מדי מיילים. נסה שוב בעוד כמה דקות."
-            : "שליחת המייל נכשלה. נסה שוב.",
-      );
+      setError(error === "rate_limit" ? "נשלחו יותר מדי מיילים. נסה שוב בעוד כמה דקות." : "שליחת המייל נכשלה. נסה שוב.");
       return;
     }
     setStep("code");
@@ -81,7 +75,7 @@ export function LoginForm() {
     <form onSubmit={verifyCode} className="space-y-4">
       <div className="space-y-2 rounded-lg bg-blue-50 p-3 text-sm text-blue-900 dark:bg-blue-950 dark:text-blue-100">
         <p>
-          שלחנו מייל ל-<span dir="ltr">{email}</span>.
+          אם הכתובת <span dir="ltr">{email}</span> רשומה במערכת, נשלח אליה מייל.
         </p>
         <p>
           <strong>פתחו אותו ולחצו על הקישור</strong> (אפשר גם מהטלפון). אם קיבלתם קוד מספרי, הקלידו אותו כאן:
