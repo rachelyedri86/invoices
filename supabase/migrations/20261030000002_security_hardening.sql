@@ -1,17 +1,12 @@
 -- =====================================================================
--- Security hardening (review of 2026-10-30)
---   1. New profiles are inactive until an admin activates them
+-- Security hardening (review of 2026-10-30), on top of 20261030000001_active_users_only:
+--   1. (there) New profiles are inactive by default; restrictive "active users only"
+--      policies block inactive users on every table and on the invoice files
 --   2. invoices.file_path must be inside the employee's own storage folder
---   3. Deactivated users cannot act through the API with a still-valid JWT
+--   3. Deactivated users cannot act through the workflow functions either (they are
+--      security definer, so RLS policies do not apply inside them)
 --   4. Admin changes to profiles are audited
 -- =====================================================================
-
--- ---------- 1. New profiles start inactive ----------
--- handle_new_user() inserts without "active", so every new auth user now gets active = false.
--- Only an admin (createUser in the admin screen) or the seed script activates a user, so an
--- auth user created any other way (e.g. if self-signup is ever enabled in Supabase) has no
--- active profile: app_role() returns null for them and the app signs them out.
-alter table public.profiles alter column active set default false;
 
 -- ---------- 2. file_path lives in the employee's own folder ----------
 -- Fail loudly instead of silently nulling data: existing rows must be fixed by hand first.
@@ -77,20 +72,8 @@ as $$
   )
 $$;
 
--- Invoices are readable only by active users. Without this, a deactivated approver would still
--- see the invoices waiting for them / decided by them through the direct-id branches.
-drop policy "read invoices" on public.invoices;
-create policy "read invoices" on public.invoices for select to authenticated using (
-  (select public.app_role()) is not null and (
-    employee_id = (select auth.uid())
-    or current_approver_id = (select auth.uid())
-    or first_approver_id = (select auth.uid())
-    or decided_by = (select auth.uid())
-    or (status <> 'draft' and public.manages(employee_id))
-    or (status in ('approved', 'paid') and public.is_accounting())
-    or public.is_admin()
-  )
-);
+-- (Reading invoices as an inactive user is already blocked by the restrictive policy
+-- "active users only" from 20261030000001.)
 
 -- Employee: draft/rejected -> pending
 create or replace function public.submit_invoice(p_invoice_id uuid)

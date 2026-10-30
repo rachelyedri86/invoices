@@ -126,6 +126,9 @@ Expense categories: ${categories.length ? categories.join(" | ") : "(none)"}`,
           }] }],
     });
   } catch (error) {
+    // Log the real reason on the server; the user only gets a code (see ExtractionError).
+    const e = error as { name?: string; status?: number; message?: string };
+    console.error("extractInvoice failed:", e.name, e.status ?? "", String(e.message ?? "").slice(0, 200));
     if (error instanceof Anthropic.RateLimitError) throw new ExtractionError("busy");
     if (error instanceof Anthropic.AuthenticationError) throw new ExtractionError("auth");
     if (error instanceof Anthropic.BadRequestError) throw new ExtractionError("unreadable");

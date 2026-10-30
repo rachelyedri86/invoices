@@ -86,7 +86,8 @@ APP_URL=http://localhost:3000          # חובה בייצור: כל ההפני�
 
 ## אבטחה (סקירה 30.10.2026 ותיקוניה)
 - **הגדרות ב-Supabase שחייבות להישמר** (אינן בקוד): Authentication → "Allow new users to sign up" כבוי; Redirect URLs רק כתובות מדויקות (`https://invoices-rachelyedri.xhostd.app/auth/confirm`, `http://localhost:3000/auth/confirm`) בלי wildcard; תוקף OTP קצר (10 דקות); תוקף JWT קצר (15 דקות). מומלץ: תבנית Magic Link עם `{{ .Token }}` בלבד, כדי שלא יישלח קישור עם session.
-- **הגנת עומק במסד** (`20261030000001_security_hardening.sql`): פרופיל חדש נוצר `active=false` (רק אדמין או הסיד מפעילים); `invoices.file_path` חייב להיות בתיקיית העובד (constraint + מדיניות Storage); משתמש מושבת לא קורא חשבוניות ולא מפעיל פונקציות תהליך גם עם JWT תקף; טבלת `admin_audit` (trigger על `profiles`, קריאה לאדמין בלבד).
+- **הגנת עומק במסד**: `20261030000001_active_users_only.sql`: פרופיל חדש נוצר `active=false` (רק אדמין או הסיד מפעילים) ומדיניות restrictive "active users only" על כל הטבלאות וה-Storage, כך שמשתמש לא פעיל חסום גם עם JWT תקף. `20261030000002_security_hardening.sql`: `invoices.file_path` חייב להיות בתיקיית העובד (constraint + מדיניות Storage); פונקציות התהליך (`security definer`, שעוקפות RLS) בודקות בעצמן שהקורא פעיל; טבלת `admin_audit` (trigger על `profiles`, קריאה לאדמין בלבד).
+- **ריפו GitHub ציבורי** (החלטת המשתמשת), לכן אסור שיהיו בקוד סודות, project ref או נתונים אמיתיים. שותף: zomer-g (Collaborator).
 - **כניסה**: `emailRedirectTo` ו-`absoluteUrl()` נבנים מ-`APP_URL`; התשובה לטופס הכניסה זהה למייל רשום ולא רשום; `/auth/signout` רק POST; משתמש מושבת מנותב ל-`/auth/inactive`.
 - **העלאות**: עד 30 העלאות לשעה למשתמש (`UPLOADS_PER_HOUR`), תמונות עד 40 מגה-פיקסל (`MAX_INPUT_PIXELS`), `max_tokens: 4000`, והמסמך מוגדר בפרומפט כקלט לא אמין. אזהרות עוברות ב-URL כקודים (`UploadWarning`), לא כטקסט; גם `?done=` באישורים הוא קוד.
 - **כותרות** (`next.config.ts`): `frame-ancestors 'none'`, `X-Frame-Options`, `Referrer-Policy`, `nosniff`, בלי `X-Powered-By`. HSTS מגיע מה-proxy של xhostd.
@@ -124,7 +125,7 @@ APP_URL=http://localhost:3000          # חובה בייצור: כל ההפני�
 - מחלקות וקטגוריות ממוינות לפי `position` ואז שם ("אחר" = 999, תמיד אחרון)
 - `samples/`: חשבוניות לדוגמה (PNG/PDF) לבדיקה ידנית
 - אחרי מיגרציה חדשה: `npm run db:types` מעדכן את `src/lib/database.types.ts`
-- `supabase/migrations/`: סכמה, פונקציות תהליך (`submit_invoice`, `approve_invoice`, `reject_invoice`, `mark_invoices_paid`, `invoice_duplicate_exists`), RLS ו-Storage; `…000002` סדר תצוגה; `20261030000001` הקשחת אבטחה (ראו "אבטחה"). שינוי סכמה = קובץ מיגרציה חדש, לא עריכה של קובץ שכבר הוחל.
+- `supabase/migrations/`: סכמה, פונקציות תהליך (`submit_invoice`, `approve_invoice`, `reject_invoice`, `mark_invoices_paid`, `invoice_duplicate_exists`), RLS ו-Storage; `20261029…02` סדר תצוגה; `20261030000001_active_users_only` מדיניות restrictive "active users only"; `20261030000002_security_hardening` שאר ההקשחה (ראו "אבטחה"). שינוי סכמה = קובץ מיגרציה חדש, לא עריכה של קובץ שכבר הוחל.
 - סטטוס משתנה רק דרך פונקציות התהליך. למשתמשים יש הרשאת עדכון רק לעמודות שניתנות לעריכה.
 - `src/lib/supabase/`: `server.ts` (משתמש מחובר), `client.ts` (דפדפן), `admin.ts` (מפתח סודי, שרת בלבד)
 - Next.js 16 עם `cacheComponents`: קריאות לנתונים לא מטומנים עטופות ב-`<Suspense>` (ראו `node_modules/next/dist/docs`)
