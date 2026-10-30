@@ -72,7 +72,7 @@
 
 ## משתני סביבה (`.env.local`, לא עולה ל-git; תבנית ב-`.env.example`)
 ```
-NEXT_PUBLIC_SUPABASE_URL=              # https://zcfvwibujznsmtdiosbn.supabase.co
+NEXT_PUBLIC_SUPABASE_URL=              # כתובת הפרויקט, ראו .env.local
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=  # sb_publishable_...
 SUPABASE_SECRET_KEY=                   # sb_secret_...  שרת בלבד
 SUPABASE_DB_URL=                       # Session pooler, למיגרציות בלבד

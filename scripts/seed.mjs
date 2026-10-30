@@ -1,7 +1,24 @@
-// Creates demo data: users (one per role), departments, categories, currencies and invoices.
+// Creates demo data: users (one per role, including an admin), departments, categories,
+// currencies and invoices, in whatever project SUPABASE_URL points to.
 // Safe to run again: existing demo users are kept, their invoices are recreated.
-// Run: npm run db:seed
-import { admin, seedUsers } from "./lib.mjs";
+// Guard: it prints the target host and refuses to write anything unless SEED_CONFIRM=yes,
+// so a production project is not seeded by mistake.
+// Run: SEED_CONFIRM=yes npm run db:seed   (or put SEED_CONFIRM=yes in .env.local)
+import { admin, seedUsers, SUPABASE_URL } from "./lib.mjs";
+
+// ---------- Confirmation (before any write) ----------
+console.log(`יעד ה-seed: ${new URL(SUPABASE_URL).host}`);
+if (process.env.SEED_CONFIRM !== "yes") {
+  console.error(
+    [
+      "ה-seed לא הורץ.",
+      "הוא יוצר משתמשי דמו, כולל משתמש אדמין, ונתוני דמה במסד הנתונים שאליו מצביע SUPABASE_URL (הכתובת שלמעלה).",
+      "אם זה פרויקט הייצור, אל תריצו אותו.",
+      "כדי להריץ בכל זאת: הוסיפו SEED_CONFIRM=yes לקובץ .env.local, או הגדירו את המשתנה בשורת הפקודה.",
+    ].join("\n"),
+  );
+  process.exit(1);
+}
 
 function check(label, { data, error }) {
   if (error) {
