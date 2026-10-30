@@ -1,7 +1,7 @@
 // Checks permissions (RLS) and the approval workflow against the real database, as each demo user.
 // Run after the seed: npm run db:test   (creates test invoices and deletes them at the end)
 import { createClient } from "@supabase/supabase-js";
-import { admin, clientAs, seedUsers, SUPABASE_URL, PUBLISHABLE_KEY } from "./lib.mjs";
+import { admin, clientAs, env, seedUsers, SUPABASE_URL, PUBLISHABLE_KEY } from "./lib.mjs";
 
 const people = seedUsers();
 const as = {};
@@ -21,6 +21,10 @@ function expect(label, ok, detail = "") {
 
 const created = [];
 const uniq = `T${Date.now()}`;
+// Cleanup state for the security tests (restored in finally).
+let signupUserId = null;
+let managerDeactivated = false;
+let employeeDepartment; // undefined = not changed
 async function newDraft(client, extra = {}) {
   const userId = (await client.auth.getUser()).data.user.id;
   const { data, error } = await client
@@ -97,6 +101,60 @@ try {
 
   const forgeOwner = await as.employee.from("invoices").insert({ employee_id: ids.manager, supplier_name: "x" });
   expect("אי אפשר ליצור חשבונית בשם מישהו אחר", !!forgeOwner.error);
+
+  // A draft cannot point at a file in someone else's storage folder (check constraint).
+  const ownDraft = await newDraft(as.employee);
+  const foreignFile = await as.employee
+    .from("invoices")
+    .update({ file_path: `${ids.manager}/${uniq}.pdf` })
+    .eq("id", ownDraft.id)
+    .select();
+  expect(
+    "עובד לא יכול להפנות טיוטה לקובץ בתיקייה של מישהו אחר",
+    foreignFile.error?.code === "23514",
+    foreignFile.error?.code ?? "no error",
+  );
+
+  // ---------- Self-signup ----------
+  // Signups should be disabled in Supabase; if they are not, the new user must get an inactive profile.
+  const [seedLocal, seedDomain] = env("SEED_EMAIL").split("@");
+  const signupClient = createClient(SUPABASE_URL, PUBLISHABLE_KEY, { auth: { persistSession: false } });
+  const signup = await signupClient.auth.signUp({
+    email: `${seedLocal}+rlstest${Date.now()}@${seedDomain}`.toLowerCase(),
+    password: `${crypto.randomUUID()}Aa1!`,
+  });
+  signupUserId = signup.data?.user?.id ?? null;
+  if (signup.error || !signupUserId) {
+    // Expected code: signup_disabled. Another error (e.g. a rate limit) also passes, so it is printed.
+    expect(`הרשמה עצמית חסומה (${signup.error?.code ?? signup.error?.message})`, !!signup.error, "no user and no error");
+  } else {
+    const signupProfile = await admin.from("profiles").select("active").eq("id", signupUserId).maybeSingle();
+    expect("משתמש שנרשם בעצמו נוצר לא פעיל", signupProfile.data?.active === false, JSON.stringify(signupProfile.data));
+  }
+
+  // ---------- Admin audit ----------
+  const empBefore = (await admin.from("profiles").select("department_id").eq("id", ids.employee).single()).data;
+  const departments = (await admin.from("departments").select("id")).data ?? [];
+  const otherDepartment = departments.find((d) => d.id !== empBefore.department_id)?.id ?? null;
+  employeeDepartment = empBefore.department_id;
+  const auditUpdate = await as.admin.from("profiles").update({ department_id: otherDepartment }).eq("id", ids.employee);
+  expect("אדמין משנה מחלקה של עובד", !auditUpdate.error, auditUpdate.error?.message);
+  const audit = await as.admin
+    .from("admin_audit")
+    .select("id, actor_id, changes")
+    .eq("target_id", ids.employee)
+    .order("id", { ascending: false });
+  expect("השינוי נרשם ביומן האדמין", (audit.data?.length ?? 0) >= 1, audit.error?.message);
+  const lastAudit = audit.data?.[0];
+  expect(
+    "ביומן נרשם מי שינה ומה השתנה",
+    lastAudit?.actor_id === ids.admin && lastAudit?.changes?.department_id?.to === otherDepartment,
+    JSON.stringify(lastAudit),
+  );
+  const empAudit = await as.employee.from("admin_audit").select("id");
+  expect("עובד לא רואה את יומן האדמין", !!empAudit.error || empAudit.data.length === 0);
+  await admin.from("profiles").update({ department_id: employeeDepartment }).eq("id", ids.employee);
+  employeeDepartment = undefined;
 
   // ---------- Workflow above the threshold ----------
   const big = await newDraft(as.employee, { total_amount: 7000 });
@@ -182,7 +240,37 @@ try {
   expect("המנהל מקבל קישור חתום לקובץ של חשבונית שממתינה לו", !!s.data?.signedUrl, s.error?.message);
 
   await admin.storage.from("invoices").remove([ownPath]);
+
+  // ---------- Deactivated manager ----------
+  // Last on purpose. Only profiles.active changes (no ban in Auth): the manager's JWT stays
+  // valid, so this checks that the database itself blocks a deactivated user.
+  const waiting = await newDraft(as.employee);
+  r = await as.employee.rpc("submit_invoice", { p_invoice_id: waiting.id });
+  expect("הגשה לפני השבתת המנהל", r.data === "pending", r.error?.message);
+
+  managerDeactivated = true;
+  const deactivate = await admin.from("profiles").update({ active: false }).eq("id", ids.manager);
+  expect("השבתת המנהל", !deactivate.error, deactivate.error?.message);
+
+  r = await as.manager.rpc("approve_invoice", { p_invoice_id: waiting.id });
+  expect("מנהל מושבת לא יכול לאשר", !!r.error, r.data);
+  r = await as.manager.rpc("reject_invoice", { p_invoice_id: waiting.id, p_reason: "בדיקה" });
+  expect("מנהל מושבת לא יכול לדחות", !!r.error, r.data);
+  const stillPending = (await admin.from("invoices").select("status").eq("id", waiting.id).single()).data;
+  expect("החשבונית נשארה ממתינה", stillPending?.status === "pending", stillPending?.status);
+
+  const deactivatedView = await as.manager.from("invoices").select("id, employee_id");
+  expect(
+    "מנהל מושבת לא רואה את החשבוניות של העובדים שלו",
+    !!deactivatedView.error || !deactivatedView.data.some((i) => i.employee_id === ids.employee),
+    `${deactivatedView.data?.length}`,
+  );
 } finally {
+  if (managerDeactivated) await admin.from("profiles").update({ active: true }).eq("id", ids.manager);
+  if (employeeDepartment !== undefined) {
+    await admin.from("profiles").update({ department_id: employeeDepartment }).eq("id", ids.employee);
+  }
+  if (signupUserId) await admin.auth.admin.deleteUser(signupUserId);
   if (created.length) await admin.from("invoices").delete().in("id", created);
 }
 

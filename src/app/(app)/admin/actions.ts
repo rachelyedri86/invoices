@@ -27,15 +27,16 @@ function firstIssue(error: z.ZodError): ActionResult {
   return { error: error.issues[0]?.message ?? "נתונים לא תקינים" };
 }
 
-/** A manager must be a manager/admin, not the user, and not someone who reports (up the chain) to the user. */
+/** A manager must be an active manager/admin, not the user, and not someone who reports (up the chain) to the user. */
 async function checkManager(userId: string | null, managerId: string | null): Promise<string | null> {
   if (!managerId) return null;
   if (managerId === userId) return "משתמש לא יכול להיות המנהל של עצמו.";
   const supabase = await createClient();
-  const { data: people } = await supabase.from("profiles").select("id, manager_id, role");
+  const { data: people } = await supabase.from("profiles").select("id, manager_id, role, active");
   const byId = new Map((people ?? []).map((p) => [p.id, p]));
   const manager = byId.get(managerId);
   if (!manager || !["manager", "admin"].includes(manager.role)) return "המנהל שנבחר צריך להיות בתפקיד מנהל או אדמין.";
+  if (!manager.active) return "המנהל שנבחר אינו פעיל.";
   for (let id: string | null = managerId, steps = 0; id && steps < 50; id = byId.get(id)?.manager_id ?? null, steps++) {
     if (id === userId) return "הבחירה יוצרת מעגל: המנהל שנבחר נמצא מתחת למשתמש הזה.";
   }
@@ -62,10 +63,11 @@ export async function createUser(_: ActionResult, form: FormData): Promise<Actio
     return { error: /already|registered|exists/i.test(error.message) ? "משתמש עם המייל הזה כבר קיים." : "יצירת המשתמש נכשלה." };
   }
 
+  // New profiles are created inactive (database default), so the admin activates this one here.
   const supabase = await createClient();
   const { error: updateError } = await supabase
     .from("profiles")
-    .update(fields.data)
+    .update({ ...fields.data, active: true })
     .eq("id", data.user.id);
   if (updateError) return dbError(updateError);
 
@@ -89,6 +91,32 @@ export async function updateUser(_: ActionResult, form: FormData): Promise<Actio
 
   const supabase = await createClient();
   const { data: before } = await supabase.from("profiles").select("active").eq("id", id.data).single();
+
+  // Before deactivating, nobody may still depend on this user as a manager or approver.
+  if (before?.active === true && !active) {
+    const [reports, pending] = await Promise.all([
+      supabase.from("profiles").select("id", { count: "exact", head: true }).eq("manager_id", id.data).eq("active", true),
+      supabase
+        .from("invoices")
+        .select("id", { count: "exact", head: true })
+        .eq("current_approver_id", id.data)
+        .in("status", ["pending", "pending_second"]),
+    ]);
+    if (reports.error) return dbError(reports.error);
+    if (pending.error) return dbError(pending.error);
+    const employees = reports.count ?? 0;
+    const invoices = pending.count ?? 0;
+    if (employees > 0 || invoices > 0) {
+      const parts = [
+        employees > 0 ? `${employees} עובדים פעילים שהמשתמש הזה הוא המנהל שלהם` : null,
+        invoices > 0 ? `${invoices} חשבוניות שממתינות לאישור שלו` : null,
+      ].filter(Boolean);
+      return {
+        error: `אי אפשר להשבית: יש ${parts.join(" ו-")}. קודם יש להעביר אותם למנהל אחר, ורק אז להשבית.`,
+      };
+    }
+  }
+
   const { error } = await supabase
     .from("profiles")
     .update({ ...fields.data, active })
