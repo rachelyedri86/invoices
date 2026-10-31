@@ -6,6 +6,7 @@ const TABS = [
   { href: "/admin/departments", label: "מחלקות" },
   { href: "/admin/categories", label: "קטגוריות" },
   { href: "/admin/settings", label: "מטבעות וסף אישור" },
+  { href: "/admin/tests", label: "בדיקות" },
 ];
 
 export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
