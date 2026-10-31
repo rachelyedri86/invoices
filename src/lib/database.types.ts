@@ -5,7 +5,27 @@ export type Database = {
   
   "public": {
           Tables: {
-            "categories": {
+            "admin_audit": {
+                  Row: {
+                    "actor_id": string | null,"changes": NonNullable<Json>,"created_at": string,"id": number,"target_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "actor_id"?: string | null,"changes": NonNullable<Json>,"created_at"?: string,"id"?: never,"target_id": string
+                  }
+                  Update: {
+                    "actor_id"?: string | null,"changes"?: NonNullable<Json>,"created_at"?: string,"id"?: never,"target_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "admin_audit_actor_id_fkey"
+      columns: ["actor_id"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"categories": {
                   Row: {
                     "active": boolean,"created_at": string,"id": string,"name": string,"position": number
                   }
