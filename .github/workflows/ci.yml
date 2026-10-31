@@ -1,0 +1,171 @@
+# Tests for every meaningful code change, and on demand (also from the admin screen /admin/tests).
+#
+# Suites:
+#   quick            lint, build, type check, unit tests (always; the only suite for pull requests)
+#   full             quick + integration (RLS and workflow) + end-to-end with recorded extraction
+#                    (push to main, or run by hand)
+#   real-extraction  like full, but the end-to-end scenarios send the files to Claude (paid)
+#
+# Integration and end-to-end tests need a Supabase project for tests. They run only when its
+# secrets exist (Settings → Secrets and variables → Actions):
+#   TEST_SUPABASE_URL, TEST_SUPABASE_PUBLISHABLE_KEY, TEST_SUPABASE_SECRET_KEY, TEST_SEED_EMAIL
+#   TEST_ANTHROPIC_API_KEY (optional, for real-extraction)
+# They are passed to the tests under the app's own names (SUPABASE_URL, ...). See tests/README.md.
+# This file contains no secrets.
+
+name: CI
+run-name: ${{ github.event_name == 'workflow_dispatch' && format('Tests ({0}), started by {1}', inputs.suite, github.actor) || github.event.pull_request.title || github.event.head_commit.message || 'CI' }}
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "supabase/**"
+      - "scripts/**"
+      - "tests/**"
+      - "package.json"
+      - "package-lock.json"
+      - "next.config.ts"
+      - "Dockerfile"
+      - ".github/workflows/**"
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "supabase/**"
+      - "scripts/**"
+      - "tests/**"
+      - "package.json"
+      - "package-lock.json"
+      - "next.config.ts"
+      - "Dockerfile"
+      - ".github/workflows/**"
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: Which tests to run
+        type: choice
+        options: [quick, full, real-extraction]
+        default: full
+  # Nightly run with real extraction (about ten paid Claude calls per run). Uncomment to enable.
+  # schedule:
+  #   - cron: "0 1 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}-${{ github.event_name }}-${{ inputs.suite || 'auto' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  check:
+    name: Lint, build, type check, unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      # Before tsc: the build generates the route types (PageProps) that tsc needs.
+      - run: npm run build
+      - run: npx tsc --noEmit
+      - run: npm test
+      - name: Self-test module runs under Node type stripping (npm run db:test)
+        run: node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --input-type=module -e "const m = await import('./src/lib/selftest/checks.ts'); if (typeof m.runSelfTest !== 'function') process.exit(1);"
+
+  gate:
+    name: Decide which suites run
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.decide.outputs.run }}
+      provider: ${{ steps.decide.outputs.provider }}
+    steps:
+      - id: decide
+        env:
+          EVENT: ${{ github.event_name }}
+          SUITE: ${{ inputs.suite }}
+          # Secrets cannot be used in a job's `if`, so only "is it set" is passed on from here.
+          HAS_SUPABASE: ${{ secrets.TEST_SUPABASE_URL != '' && secrets.TEST_SUPABASE_PUBLISHABLE_KEY != '' && secrets.TEST_SUPABASE_SECRET_KEY != '' && secrets.TEST_SEED_EMAIL != '' }}
+          HAS_ANTHROPIC: ${{ secrets.TEST_ANTHROPIC_API_KEY != '' }}
+        run: |
+          case "$EVENT" in
+            workflow_dispatch) suite="$SUITE" ;;
+            push) suite=full ;;
+            schedule) suite=real-extraction ;;
+            *) suite=quick ;;
+          esac
+          run=false
+          if [ "$suite" != quick ]; then
+            if [ "$HAS_SUPABASE" = true ]; then
+              run=true
+            else
+              echo "::warning::Suite '$suite' needs the TEST_SUPABASE_* and TEST_SEED_EMAIL secrets; running the quick checks only."
+            fi
+          fi
+          provider=mock
+          if [ "$suite" = real-extraction ]; then
+            provider=anthropic
+            [ "$HAS_ANTHROPIC" = true ] || echo "::warning::TEST_ANTHROPIC_API_KEY is not set: the real-extraction scenarios will be skipped."
+          fi
+          echo "Suite: $suite · integration/e2e: $run · extraction: $provider"
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+          echo "provider=$provider" >> "$GITHUB_OUTPUT"
+
+  integration:
+    name: Integration (RLS and approval workflow)
+    needs: [check, gate]
+    if: needs.gate.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_URL: ${{ secrets.TEST_SUPABASE_URL }}
+      SUPABASE_PUBLISHABLE_KEY: ${{ secrets.TEST_SUPABASE_PUBLISHABLE_KEY }}
+      SUPABASE_SECRET_KEY: ${{ secrets.TEST_SUPABASE_SECRET_KEY }}
+      SEED_EMAIL: ${{ secrets.TEST_SEED_EMAIL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test:integration
+
+  e2e:
+    name: End-to-end (${{ needs.gate.outputs.provider }} extraction)
+    # After the integration job, never at the same time: both use the same demo users, and the
+    # integration checks briefly deactivate the demo manager.
+    needs: [check, gate, integration]
+    if: ${{ !cancelled() && needs.check.result == 'success' && needs.gate.outputs.run == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      SUPABASE_URL: ${{ secrets.TEST_SUPABASE_URL }}
+      SUPABASE_PUBLISHABLE_KEY: ${{ secrets.TEST_SUPABASE_PUBLISHABLE_KEY }}
+      SUPABASE_SECRET_KEY: ${{ secrets.TEST_SUPABASE_SECRET_KEY }}
+      SEED_EMAIL: ${{ secrets.TEST_SEED_EMAIL }}
+      EXTRACTION_PROVIDER: ${{ needs.gate.outputs.provider }}
+      ANTHROPIC_API_KEY: ${{ needs.gate.outputs.provider == 'anthropic' && secrets.TEST_ANTHROPIC_API_KEY || '' }}
+      NEXT_TELEMETRY_DISABLED: 1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test
+      - name: Upload the Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14
