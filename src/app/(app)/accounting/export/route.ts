@@ -3,6 +3,7 @@ import ExcelJS from "exceljs";
 import { getCurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { accountingQuery, parseFilters } from "@/lib/accounting";
+import { csvCell } from "@/lib/csv";
 import { DOC_TYPE_LABELS, STATUS_LABELS } from "@/lib/labels";
 
 // Download of the invoices shown on the accounting screen, as CSV or Excel.
@@ -36,14 +37,6 @@ const COLUMNS = [
 type Key = (typeof COLUMNS)[number]["key"];
 
 const day = (iso: string | null) => (iso ? iso.slice(0, 10) : null);
-
-function csvCell(value: unknown): string {
-  if (value == null) return "";
-  let s = String(value);
-  // Stop spreadsheet formula injection from text that starts with = + - @.
-  if (typeof value === "string" && /^[=+\-@]/.test(s)) s = `'${s}`;
-  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
 
 export async function GET(request: NextRequest) {
   const user = await getCurrentUser();

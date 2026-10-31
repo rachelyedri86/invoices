@@ -12,25 +12,7 @@ import { DecisionPanel } from "./decision-panel";
 import { History, type HistoryEntry } from "./history";
 import { ReplaceFile } from "./replace-file";
 import { AdminDelete } from "./admin-delete";
-import type { UploadWarning } from "../actions";
-
-// The upload redirects here with a warning code; only these known texts are ever shown.
-// {currency} is filled in only with a valid 3-letter code; otherwise the generic wording is used.
-const WARNINGS: Record<UploadWarning, string> = {
-  not_invoice: "הקובץ לא נראה כמו חשבונית או קבלה. בדקו שהעליתם את הקובץ הנכון.",
-  extract_busy: "שירות הזיהוי עמוס כרגע. נסו שוב בעוד דקה.",
-  extract_auth: "מפתח Claude API לא תקין. פנו לאדמין.",
-  extract_unreadable: "לא הצלחנו לזהות את הנתונים. אפשר למלא את השדות ידנית.",
-  extract_unavailable: "שירות הזיהוי לא זמין כרגע. אפשר למלא את השדות ידנית.",
-  image_too_large: "התמונה גדולה מדי לזיהוי אוטומטי. אפשר למלא את השדות ידנית.",
-  currency_unknown: "המטבע {currency} לא מוגדר במערכת. בדקו את המטבע לפני ההגשה.",
-};
-
-function warningText(code: string | string[] | undefined, currency: string | string[] | undefined) {
-  if (typeof code !== "string" || !Object.prototype.hasOwnProperty.call(WARNINGS, code)) return undefined;
-  const validCurrency = typeof currency === "string" && /^[A-Z]{3}$/.test(currency) ? currency : "שזוהה";
-  return WARNINGS[code as UploadWarning].replace("{currency}", validCurrency);
-}
+import { warningText } from "@/lib/upload-warnings";
 
 export default async function InvoicePage({ params, searchParams }: PageProps<"/invoices/[id]">) {
   const user = await requireUser();

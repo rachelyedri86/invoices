@@ -9,38 +9,11 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { extractInvoice, ExtractionError, MAX_FILE_BYTES, sniffMime, type Extraction } from "@/lib/extract";
 import { dbError } from "@/lib/action-result";
 import { notifyInvoice } from "@/lib/notify";
-
-const round2 = (n: number | null | undefined) => (n == null || !Number.isFinite(n) ? null : Math.round(n * 100) / 100);
-
-function validDate(value: string | null): string | null {
-  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
-  const d = new Date(`${value}T00:00:00Z`);
-  return Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== value ? null : value;
-}
+import { deriveAmounts, round2, validDate } from "@/lib/invoice-fields";
+import { extractionWarning, type UploadWarning } from "@/lib/upload-warnings";
 
 // Each upload is one paid Claude call; this caps what a single account can spend per hour.
 const UPLOADS_PER_HOUR = 30;
-
-/**
- * Codes, not text: the client puts the warning in the URL and the invoice page translates known
- * codes only, so nobody can craft a link that shows an arbitrary message.
- */
-export type UploadWarning =
-  | "not_invoice"
-  | "extract_busy"
-  | "extract_auth"
-  | "extract_unreadable"
-  | "extract_unavailable"
-  | "image_too_large"
-  | "currency_unknown";
-
-const EXTRACTION_WARNINGS: Record<ExtractionError["code"], UploadWarning> = {
-  busy: "extract_busy",
-  auth: "extract_auth",
-  unreadable: "extract_unreadable",
-  unavailable: "extract_unavailable",
-  image_too_large: "image_too_large",
-};
 
 /**
  * Step 2 of a new invoice: the browser already uploaded the file to the user's storage folder.
@@ -88,7 +61,7 @@ export async function processUpload(
     extraction = await extractInvoice(bytes, mime, (categories ?? []).map((c) => c.name));
     if (!extraction.is_invoice) warning = "not_invoice";
   } catch (error) {
-    warning = error instanceof ExtractionError ? EXTRACTION_WARNINGS[error.code] : "extract_unavailable";
+    warning = extractionWarning(error instanceof ExtractionError ? error.code : undefined);
   }
 
   let currency = "ILS";
@@ -105,20 +78,11 @@ export async function processUpload(
   }
 
   // When two of the three amounts are printed, the third follows from them.
-  let before = round2(extraction?.amount_before_vat);
-  let vat = round2(extraction?.vat_amount);
-  let total = round2(extraction?.total_amount);
-  const derived: string[] = [];
-  if (total != null && vat != null && before == null) {
-    before = round2(total - vat);
-    derived.push("amount_before_vat");
-  } else if (total != null && before != null && vat == null) {
-    vat = round2(total - before);
-    derived.push("vat_amount");
-  } else if (before != null && vat != null && total == null) {
-    total = round2(before + vat);
-    derived.push("total_amount");
-  }
+  const { before, vat, total, derived } = deriveAmounts({
+    amount_before_vat: extraction?.amount_before_vat,
+    vat_amount: extraction?.vat_amount,
+    total_amount: extraction?.total_amount,
+  });
 
   const suggested = extraction?.category?.trim();
   const categoryId = (categories ?? []).find((c) => c.name === suggested)?.id ?? null;
