@@ -45,6 +45,12 @@ npm run dev                     # http://localhost:3000
 | `npm run db:seed` | נתוני דמה; רץ רק עם `SEED_CONFIRM=yes` |
 | `npm run db:test` | בדיקות הרשאות (RLS) ותהליך האישור מול המסד האמיתי |
 | `npm run storage:cleanup` | רשימת קבצים יתומים ב-Storage; עם `-- --delete` מוחק |
+| `npm test` | בדיקות יחידה (בלי מסד נתונים) |
+| `npm run test:integration` | בדיקות הרשאות ותהליך מול פרויקט Supabase (מומלץ פרויקט בדיקות נפרד) |
+| `npm run test:e2e` | בדיקות דפדפן מקצה לקצה עם חילוץ מדומה; `test:e2e:real` עם Claude אמיתי |
+| `npm run fixtures:generate` | יצירה מחדש של חשבוניות הבדיקה ב-`tests/fixtures` |
+
+הסבר מלא על הבדיקות, פרויקט הבדיקות, GitHub Actions ומסך הבדיקות של האדמין: `tests/README.md`.
 
 ## אבטחה
 
@@ -62,6 +68,7 @@ npm run dev                     # http://localhost:3000
 - `src/lib/` – אימות, חילוץ עם Claude, מיילים, לקוחות Supabase
 - `supabase/migrations/` – סכמה, RLS, פונקציות התהליך, Storage
 - `scripts/` – מיגרציות, סיד, בדיקות RLS, ניקוי Storage
+- `tests/` – בדיקות יחידה, אינטגרציה וקצה לקצה, וחשבוניות הבדיקה
 - `samples/` – חשבוניות דמה לבדיקה ידנית
 
 תיעוד מלא למפתחים (החלטות, פריסה, משתני סביבה): `CLAUDE.md`.

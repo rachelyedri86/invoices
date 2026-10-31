@@ -81,6 +81,10 @@ SEED_EMAIL=                            # בסיס לכתובות משתמשי ה
 SEED_CONFIRM=                          # חייב להיות yes כדי ש-db:seed ירוץ (הגנה מפני seed בטעות על הייצור)
 EMAIL_TEST_RECIPIENT_FORCE=            # בייצור EMAIL_TEST_RECIPIENT מתעלם, אלא אם כאן 1
 APP_URL=http://localhost:3000          # חובה בייצור: כל ההפניות וקישורי הכניסה נבנים ממנו, לא מכותרות הבקשה
+EXTRACTION_PROVIDER=                   # mock = תשובות שמורות (tests/fixtures) במקום Claude; רק כש-NODE_ENV אינו production
+ALLOW_EXTRACTION_MOCK=                 # 1 = מתיר mock גם בייצור (לא להגדיר)
+GITHUB_TOKEN=                          # שרת בלבד: טוקן fine-grained (Actions: Read and write) לכפתור "הבדיקות המלאות"
+GITHUB_REPO=                           # ברירת מחדל rachelyedri86/invoices
 ```
 - המשתמשת ממלאת סודות ישירות בקובץ, לא בצ'אט. לבדוק ערכים רק לפי צורה ואורך, בלי להדפיס אותם.
 
@@ -98,7 +102,7 @@ APP_URL=http://localhost:3000          # חובה בייצור: כל ההפני�
 ## פריסה ל-xhostd
 - אפליקציה `invoices` (template docker, ערוץ prod על branch main). Dockerfile בונה Next.js במצב standalone
 - פריסה: `GIT_SSH_COMMAND="ssh -i ~/.ssh/xhost_ed25519 -o IdentitiesOnly=yes" git push xhostd-ssh main:main` ואז deploy (app_name=invoices, channel=prod) דרך ה-MCP של xhostd
-- משתני סביבה ב-xhostd: SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, APP_URL (חובה, הכתובת החיה), EMAIL_FROM (רגילים); SUPABASE_SECRET_KEY, ANTHROPIC_API_KEY, RESEND_API_KEY (סודות, מוזנים בקונסול). EMAIL_TEST_RECIPIENT לא אמור להיות מוגדר בייצור (ואם כן, הוא מתעלם בלי EMAIL_TEST_RECIPIENT_FORCE=1). xhostd מזריק env רק בזמן ריצה, לכן אין NEXT_PUBLIC_*: הדפדפן מקבל את כתובת Supabase דרך `window.__ENV` (layout)
+- משתני סביבה ב-xhostd: SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, APP_URL (חובה, הכתובת החיה), EMAIL_FROM (רגילים); SUPABASE_SECRET_KEY, ANTHROPIC_API_KEY, RESEND_API_KEY (סודות, מוזנים בקונסול). למסך הבדיקות (לא חובה): GITHUB_TOKEN (סוד), GITHUB_REPO, ו-SEED_EMAIL לבדיקה המהירה (רק אם הוחלט שמשתמשי הדמו קיימים בייצור). EXTRACTION_PROVIDER ו-ALLOW_EXTRACTION_MOCK לא מוגדרים בייצור. EMAIL_TEST_RECIPIENT לא אמור להיות מוגדר בייצור (ואם כן, הוא מתעלם בלי EMAIL_TEST_RECIPIENT_FORCE=1). xhostd מזריק env רק בזמן ריצה, לכן אין NEXT_PUBLIC_*: הדפדפן מקבל את כתובת Supabase דרך `window.__ENV` (layout)
 - התחברות: SSO של xhostd (Google) - הקוקי `__Host-xhost_id` מאומת מול JWKS (`src/lib/xhost.ts`), ו-`/auth/xhost` פותח session של Supabase למשתמש עם פרופיל פעיל באותו מייל. יציאה מנתקת גם את xhostd. קוד במייל נשאר כגיבוי
 - מאחורי ה-proxy של xhostd `request.url` הוא 0.0.0.0 - הפניות דרך `absoluteUrl()`
 - תוכנית basic: 128MB זיכרון משותף לכל האפליקציות בחשבון (+ swap), 0.1 CPU
@@ -107,8 +111,19 @@ APP_URL=http://localhost:3000          # חובה בייצור: כל ההפני�
 - `npm run dev`: שרת פיתוח
 - `npm run db:push`: החלת מיגרציות מ-`supabase/migrations` על פרויקט הענן (דרך `SUPABASE_DB_URL`)
 - `npm run db:seed`: נתוני דמה (אפשר להריץ שוב). מדפיס את ה-host של היעד ורץ רק עם `SEED_CONFIRM=yes`
-- `npm run db:test`: בדיקות RLS ותהליך האישור מול מסד הנתונים האמיתי, בתור כל משתמש דמו (כולל בדיקות ההקשחה: הרשמה עצמית, file_path זר, מנהל מושבת, יומן אדמין)
+- `npm run db:test`: בדיקות RLS ותהליך האישור מול מסד הנתונים האמיתי, בתור כל משתמש דמו (כולל בדיקות ההקשחה: הרשמה עצמית, file_path זר, מנהל מושבת, יומן אדמין). הקוד ב-`src/lib/selftest/checks.ts`, והסקריפט רץ עם `--experimental-strip-types`
 - `npm run storage:cleanup`: רשימת קבצים יתומים ב-Storage (הרצת בדיקה); עם `-- --delete` מוחק
+- `npm test`: בדיקות יחידה (Vitest, בלי מסד). `npm run test:integration`: אותן בדיקות של `db:test` כבדיקות Vitest. `npm run test:e2e` / `test:e2e:real`: Playwright. `npm run fixtures:generate`: חשבוניות הבדיקה
+
+## בדיקות (פירוט מלא ב-`tests/README.md`)
+- **יחידה** (`tests/unit`): פונקציות טהורות. לכן העזרים יצאו מה-server actions: `src/lib/invoice-fields.ts` (סכומים ותאריכים), `src/lib/upload-warnings.ts` (קודי אזהרה וטקסטים), `src/lib/csv.ts`.
+- **אינטגרציה**: `src/lib/selftest/checks.ts` משמש את `db:test`, את `test:integration` ואת כפתור האדמין. פועל רק בתור משתמשי הדמו, מסמן חשבוניות ב-`TEST-<runId>` ומוחק אותן, ומסרב להתחיל (בלי לכתוב) אם `SEED_EMAIL` או משתמשי הדמו חסרים.
+- **קצה לקצה** (`tests/e2e`): Playwright מפעיל `next dev` על פורט 3100 עם `EXTRACTION_PROVIDER=mock` ונכנס בכפתורי הדמו. התרחישים: חשבונית מס, חשבונית מס/קבלה, קבלה, דולרים מעל הסף, בלי סה״כ, GBP, PDF באירו, לא-חשבונית, כפילות.
+- **חילוץ מדומה**: `extractInvoice` מחזיר תשובה מ-`tests/fixtures/extractions.json` (`src/lib/extract-mock.ts`), לפי SHA-256 או לפי חתימת תמונה (`src/lib/image-signature.ts`), כי הדפדפן מכווץ תמונות מחדש. לעולם לא בייצור בלי `ALLOW_EXTRACTION_MOCK=1`.
+- סביבה לבדיקות: `.env.test` (פרויקט Supabase נפרד, מומלץ), אחרת `.env.local` (`tests/env.ts`). ב-CI: Secrets עם קידומת `TEST_` שממופים לשמות הרגילים.
+- **CI**: `.github/workflows/ci.yml`. quick (lint, build, tsc, יחידה) תמיד; full (גם אינטגרציה וקצה לקצה) ב-push ל-main או ידנית, רק אם יש Secrets; real-extraction ידנית.
+- **מסך אדמין** `/admin/tests` (לשונית "בדיקות"): בדיקה מהירה בתוך השרת (תוצאה ב-`settings.last_selftest`, עד דקה), והפעלת ה-workflow ב-GitHub עם רשימת 10 ההרצות האחרונות (`src/lib/github-actions.ts`, דורש `GITHUB_TOKEN`). Playwright לא רץ בקונטיינר.
+- קבצי PDF/PNG מסומנים binary ב-`.gitattributes`: הבדיקות מזהות אותם לפי הבייטים.
 
 ## מבנה
 - `src/proxy.ts`: רענון session והפניה ל-`/login` (רק נוחות; ההרשאות האמיתיות ב-`requireUser/requireRole` וב-RLS)
@@ -138,6 +153,7 @@ APP_URL=http://localhost:3000          # חובה בייצור: כל ההפני�
 - [x] **ה. ייצוא והתראות**: CSV/Excel, סימון שולם, מיילים למנהל ולעובד
 - [x] **ו. פריסה**: xhostd (במקום Vercel), אפליקציה `invoices`, template docker, https://invoices-rachelyedri.xhostd.app
 - [x] **ז. הקשחת אבטחה** (קוד ומיגרציה). נותר ידנית: הגדרות הדשבורד שבסעיף "אבטחה", `db:push` ואז `db:types`, `db:test`, deploy
+- [x] **ח. בדיקות** (יחידה, אינטגרציה, קצה לקצה, CI, מסך אדמין). נותר ידנית: פרויקט Supabase לבדיקות עם migrations ו-seed, Secrets עם קידומת `TEST_` ב-GitHub, `GITHUB_TOKEN` ב-xhostd (ראו `tests/README.md`)
 
 ## נתוני דמה
 משתמש אחד מכל תפקיד, ועוד מנהלת בכירה לאישור הנוסף (כתובות `+alias` של `SEED_EMAIL`, כדי שקוד ה-OTP יגיע). היררכיה: עובדת → משה מנהל → דנה בכירה; חשבונות → דנה בכירה, שתי מחלקות, כמה קטגוריות וכמה חשבוניות בסטטוסים שונים.
