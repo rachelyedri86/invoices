@@ -1,0 +1,49 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+5 0 obj
+<< /Length 873 >>
+stream
+BT /F1 22 Tf 50 780 Td (EuroDev Summit GmbH) Tj ET
+BT /F1 11 Tf 50 758 Td (Friedrichstrasse 50, 10117 Berlin, Germany - VAT ID DE298765432) Tj ET
+BT /F1 18 Tf 50 700 Td (INVOICE) Tj ET
+BT /F1 12 Tf 50 676 Td (Invoice no: EDS-2026-0457) Tj ET
+BT /F1 12 Tf 50 660 Td (Date: 2026-09-30) Tj ET
+BT /F1 12 Tf 50 644 Td (Bill to: Demo Company Ltd, Israel) Tj ET
+BT /F1 12 Tf 50 600 Td (Description) Tj ET
+BT /F1 12 Tf 400 600 Td (Qty) Tj ET
+BT /F1 12 Tf 470 600 Td (Amount \(EUR\)) Tj ET
+BT /F1 12 Tf 50 580 Td (Conference ticket - EuroDev Summit 2026) Tj ET
+BT /F1 12 Tf 400 580 Td (2) Tj ET
+BT /F1 12 Tf 470 580 Td (252.10) Tj ET
+BT /F1 12 Tf 300 540 Td (Net amount) Tj ET
+BT /F1 12 Tf 470 540 Td (EUR 252.10) Tj ET
+BT /F1 12 Tf 300 522 Td (VAT 19%) Tj ET
+BT /F1 12 Tf 470 522 Td (EUR 47.90) Tj ET
+BT /F1 14 Tf 300 500 Td (Total) Tj ET
+BT /F1 14 Tf 470 500 Td (EUR 300.00) Tj ET
+endstream
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000241 00000 n 
+0000000338 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+1262
+%%EOF

@@ -1,0 +1,4 @@
+# Test fixtures are matched by their exact bytes: never convert line endings in them.
+*.pdf binary
+*.png binary
+*.jpg binary
