@@ -102,7 +102,7 @@ GITHUB_REPO=                           # ברירת מחדל rachelyedri86/invoi
 ## פריסה ל-xhostd
 - אפליקציה `invoices` (template docker, ערוץ prod על branch main). Dockerfile בונה Next.js במצב standalone
 - פריסה: `GIT_SSH_COMMAND="ssh -i ~/.ssh/xhost_ed25519 -o IdentitiesOnly=yes" git push xhostd-ssh main:main` ואז deploy (app_name=invoices, channel=prod) דרך ה-MCP של xhostd
-- משתני סביבה ב-xhostd: SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, APP_URL (חובה, הכתובת החיה), EMAIL_FROM (רגילים); SUPABASE_SECRET_KEY, ANTHROPIC_API_KEY, RESEND_API_KEY (סודות, מוזנים בקונסול). למסך הבדיקות (לא חובה): GITHUB_TOKEN (סוד), GITHUB_REPO, ו-SEED_EMAIL לבדיקה המהירה (רק אם הוחלט שמשתמשי הדמו קיימים בייצור). EXTRACTION_PROVIDER ו-ALLOW_EXTRACTION_MOCK לא מוגדרים בייצור. EMAIL_TEST_RECIPIENT לא אמור להיות מוגדר בייצור (ואם כן, הוא מתעלם בלי EMAIL_TEST_RECIPIENT_FORCE=1). xhostd מזריק env רק בזמן ריצה, לכן אין NEXT_PUBLIC_*: הדפדפן מקבל את כתובת Supabase דרך `window.__ENV` (layout)
+- משתני סביבה ב-xhostd: SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, APP_URL (חובה, הכתובת החיה) (רגילים); SUPABASE_SECRET_KEY, ANTHROPIC_API_KEY (סודות, מוזנים בקונסול). מיילים כבויים, לכן אין RESEND_API_KEY ו-EMAIL_FROM. למסך הבדיקות (לא חובה): GITHUB_TOKEN (סוד), GITHUB_REPO, ו-SEED_EMAIL לבדיקה המהירה (רק אם הוחלט שמשתמשי הדמו קיימים בייצור). EXTRACTION_PROVIDER ו-ALLOW_EXTRACTION_MOCK לא מוגדרים בייצור. EMAIL_TEST_RECIPIENT לא אמור להיות מוגדר בייצור (ואם כן, הוא מתעלם בלי EMAIL_TEST_RECIPIENT_FORCE=1). xhostd מזריק env רק בזמן ריצה, לכן אין NEXT_PUBLIC_*: הדפדפן מקבל את כתובת Supabase דרך `window.__ENV` (layout)
 - התחברות: SSO של xhostd (Google) - הקוקי `__Host-xhost_id` מאומת מול JWKS (`src/lib/xhost.ts`), ו-`/auth/xhost` פותח session של Supabase למשתמש עם פרופיל פעיל באותו מייל. יציאה מנתקת גם את xhostd. קוד במייל נשאר כגיבוי
 - מאחורי ה-proxy של xhostd `request.url` הוא 0.0.0.0 - הפניות דרך `absoluteUrl()`
 - תוכנית basic: 128MB זיכרון משותף לכל האפליקציות בחשבון (+ swap), 0.1 CPU
@@ -162,5 +162,5 @@ GITHUB_REPO=                           # ברירת מחדל rachelyedri86/invoi
 - מנהל ישיר לכל עובד, ונקבע על ידי האדמין
 - אישור נוסף מעל סף שניתן לשינוי (ברירת מחדל 5,000 ₪ כולל מע"מ), על ידי המנהל של המנהל
 - מטבע זר: שער ידני שהאדמין מתחזק
-- מיילים: Resend
+- מיילים: כבויים בייצור (החלטה 2.11.2026). הכול מתנהל באתר: העובד מגיש, והמנהל נכנס ומאשר בלשונית "אישורים". הקוד ב-`notify.ts` נשאר, ובלי `RESEND_API_KEY` הוא מדלג בשקט. כדי להחזיר: דומיין מאומת ב-Resend, `RESEND_API_KEY` ו-`EMAIL_FROM`
 - חשבונות קיימים: GitHub. צריך לפתוח Supabase,‏ Anthropic Console ו-Vercel (Vercel רק בשלב ו')
