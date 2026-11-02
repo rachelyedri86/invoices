@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireUser, type Role } from "@/lib/auth";
 import { ROLE_LABELS } from "@/lib/labels";
+import { createClient } from "@/lib/supabase/server";
 import { NavLinks, type NavItem } from "./nav-links";
 
 const NAV: (NavItem & { roles?: Role[] })[] = [
@@ -14,10 +15,21 @@ const NAV: (NavItem & { roles?: Role[] })[] = [
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   const user = await requireUser();
-  const items = NAV.filter((item) => !item.roles || item.roles.includes(user.role)).map(({ href, label }) => ({
-    href,
-    label,
-  }));
+  const visible = NAV.filter((item) => !item.roles || item.roles.includes(user.role));
+
+  // There are no email notifications: the Approvals link shows how many invoices wait for this user.
+  let waiting = 0;
+  if (visible.some((item) => item.href === "/approvals")) {
+    const supabase = await createClient();
+    const { count } = await supabase
+      .from("invoices")
+      .select("id", { count: "exact", head: true })
+      .eq("current_approver_id", user.id)
+      .in("status", ["pending", "pending_second"]);
+    waiting = count ?? 0;
+  }
+
+  const items = visible.map(({ href, label }) => ({ href, label, badge: href === "/approvals" ? waiting : undefined }));
 
   return (
     <>

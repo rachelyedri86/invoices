@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-export type NavItem = { href: string; label: string };
+/** `badge`: a count shown next to the label (hidden when 0). */
+export type NavItem = { href: string; label: string; badge?: number };
 
 export function NavLinks({ items }: { items: NavItem[] }) {
   const pathname = usePathname();
@@ -18,13 +19,21 @@ export function NavLinks({ items }: { items: NavItem[] }) {
         <Link
           key={item.href}
           href={item.href}
-          className={`shrink-0 rounded-lg px-3 py-1.5 ${
+          className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 ${
             item.href === active
               ? "bg-blue-700 text-white"
               : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
           }`}
         >
           {item.label}
+          {!!item.badge && (
+            <span
+              className="min-w-5 rounded-full bg-red-600 px-1.5 text-center text-xs font-bold leading-5 text-white"
+              aria-label={`${item.badge} ממתינות לאישורך`}
+            >
+              {item.badge}
+            </span>
+          )}
         </Link>
       ))}
     </nav>

@@ -17,7 +17,7 @@ const VIEWS = [
 const DONE_MESSAGES: Record<DecisionOk, string> = {
   approved_second: "אושר. החשבונית הועברה לאישור נוסף.",
   approved: "החשבונית אושרה.",
-  rejected: "החשבונית נדחתה והעובד יקבל הודעה.",
+  rejected: "החשבונית נדחתה. העובד יראה את הסיבה בחשבוניות שלו.",
 };
 
 const one = (v: string | string[] | undefined) => (typeof v === "string" ? v : "");
